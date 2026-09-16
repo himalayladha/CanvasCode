@@ -14,6 +14,7 @@ export type ViewportMode = 'desktop' | 'tablet' | 'mobile' | 'responsive';
 export type CanvasMode = 'design' | 'interact';
 
 export interface InspectedElementData {
+  dataWebstudioId?: string;
   tagName: string;
   id: string;
   classList: string[];

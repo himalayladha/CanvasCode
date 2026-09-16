@@ -108,7 +108,13 @@ export const PreviewPane: React.FC = () => {
 
         case 'WEBSTUDIO_CANVAS_TEXT_EDITED':
           if (data.payload?.text !== undefined) {
-            updateSelectedElementText(data.payload.text);
+            updateSelectedElementText(
+              data.payload.text,
+              data.payload.selector,
+              data.payload.dataWebstudioId,
+              data.payload.id,
+              data.payload.tagName
+            );
           }
           break;
 

@@ -182,6 +182,7 @@ export function getIframeBridgeScript(initialInspectMode: boolean = true): strin
     }
 
     return {
+      dataWebstudioId: el.getAttribute('data-webstudio-id') || undefined,
       tagName: el.tagName.toLowerCase(),
       id: el.id || '',
       classList: classList,
@@ -289,7 +290,10 @@ export function getIframeBridgeScript(initialInspectMode: boolean = true): strin
           type: 'WEBSTUDIO_CANVAS_TEXT_EDITED',
           payload: {
             selector: getUniqueSelector(target),
-            text: target.textContent || ''
+            dataWebstudioId: target.getAttribute('data-webstudio-id') || undefined,
+            text: target.textContent || '',
+            id: target.id || '',
+            tagName: target.tagName.toLowerCase()
           }
         }, '*');
       };

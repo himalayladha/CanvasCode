@@ -326,4 +326,156 @@ describe('useProjectStore VFS', () => {
     expect(useProjectStore.getState().files['index.html'].content).toContain('Version 3');
     expect(canRedo()).toBe(false);
   });
+
+  it('updates actual HTML source file directly when editing text with selectedElement', () => {
+    const { setSelectedElement, updateSelectedElementText } = useProjectStore.getState();
+
+    setSelectedElement({
+      tagName: 'h1',
+      id: 'main-heading',
+      classList: ['hero-title'],
+      selector: '#main-heading',
+      innerText: 'Design and build web projects in real-time.',
+      attributes: { id: 'main-heading', class: 'hero-title' },
+      computedStyles: {
+        color: '',
+        backgroundColor: '',
+        fontSize: '3rem',
+        fontWeight: '800',
+        textAlign: '',
+        margin: '',
+        padding: '',
+        border: '',
+        borderRadius: '',
+        width: '600px',
+        height: '60px',
+        display: 'block',
+      },
+      boxModel: {
+        marginTop: '0px',
+        marginRight: '0px',
+        marginBottom: '0px',
+        marginLeft: '0px',
+        paddingTop: '0px',
+        paddingRight: '0px',
+        paddingBottom: '0px',
+        paddingLeft: '0px',
+      },
+      rect: { top: 0, left: 0, width: 600, height: 60 },
+    });
+
+    updateSelectedElementText('Supercharged Live Visual Editing');
+
+    const state = useProjectStore.getState();
+    expect(state.files['index.html'].content).toContain('Supercharged Live Visual Editing');
+    expect(state.files['index.html'].content).not.toContain('data-webstudio-id');
+    expect(state.files['index.html'].content).not.toContain('contenteditable');
+    expect(state.selectedElement?.innerText).toBe('Supercharged Live Visual Editing');
+  });
+
+  it('updates actual HTML source file directly when editing text without prior selection via dataWebstudioId/selector', () => {
+    const { updateSelectedElementText } = useProjectStore.getState();
+
+    // Ensure selectedElement is null (e.g. direct double click in canvas)
+    expect(useProjectStore.getState().selectedElement).toBeNull();
+
+    updateSelectedElementText('Brand New Hero Header', '#main-heading', undefined, 'main-heading', 'h1');
+
+    const state = useProjectStore.getState();
+    expect(state.files['index.html'].content).toContain('Brand New Hero Header');
+    expect(state.files['index.html'].content).not.toContain('data-webstudio-id');
+  });
+
+  it('updates actual HTML source file when modifying element styles via Visual Inspector', () => {
+    const { setSelectedElement, updateSelectedElementStyle } = useProjectStore.getState();
+
+    setSelectedElement({
+      tagName: 'h1',
+      id: 'main-heading',
+      classList: ['hero-title'],
+      selector: '#main-heading',
+      innerText: 'Design and build web projects in real-time.',
+      attributes: { id: 'main-heading', class: 'hero-title' },
+      computedStyles: {
+        color: '',
+        backgroundColor: '',
+        fontSize: '3rem',
+        fontWeight: '800',
+        textAlign: '',
+        margin: '',
+        padding: '',
+        border: '',
+        borderRadius: '',
+        width: '600px',
+        height: '60px',
+        display: 'block',
+      },
+      boxModel: {
+        marginTop: '0px',
+        marginRight: '0px',
+        marginBottom: '0px',
+        marginLeft: '0px',
+        paddingTop: '0px',
+        paddingRight: '0px',
+        paddingBottom: '0px',
+        paddingLeft: '0px',
+      },
+      rect: { top: 0, left: 0, width: 600, height: 60 },
+    });
+
+    updateSelectedElementStyle('color', 'rgb(239, 68, 68)');
+    updateSelectedElementStyle('font-size', '42px');
+
+    const state = useProjectStore.getState();
+    expect(state.files['index.html'].content).toContain('color: rgb(239, 68, 68)');
+    expect(state.files['index.html'].content).toContain('font-size: 42px');
+    expect(state.files['index.html'].content).not.toContain('data-webstudio-id');
+  });
+
+  it('duplicates and deletes elements in the actual HTML source file', () => {
+    const { setSelectedElement, duplicateSelectedElement, deleteSelectedElement } = useProjectStore.getState();
+
+    setSelectedElement({
+      tagName: 'p',
+      id: '',
+      classList: ['hero-subtitle'],
+      selector: '.hero-subtitle',
+      innerText: 'Instant live code preview with zero configuration. Pure client-side virtual file system.',
+      attributes: { class: 'hero-subtitle' },
+      computedStyles: {
+        color: '',
+        backgroundColor: '',
+        fontSize: '',
+        fontWeight: '',
+        textAlign: '',
+        margin: '',
+        padding: '',
+        border: '',
+        borderRadius: '',
+        width: '400px',
+        height: '40px',
+        display: 'block',
+      },
+      boxModel: {
+        marginTop: '0px',
+        marginRight: '0px',
+        marginBottom: '0px',
+        marginLeft: '0px',
+        paddingTop: '0px',
+        paddingRight: '0px',
+        paddingBottom: '0px',
+        paddingLeft: '0px',
+      },
+      rect: { top: 0, left: 0, width: 400, height: 40 },
+    });
+
+    duplicateSelectedElement();
+    let state = useProjectStore.getState();
+    const count = (state.files['index.html'].content.match(/hero-subtitle/g) || []).length;
+    expect(count).toBeGreaterThanOrEqual(2);
+
+    deleteSelectedElement();
+    state = useProjectStore.getState();
+    expect(state.selectedElement).toBeNull();
+  });
 });

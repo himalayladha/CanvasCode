@@ -141,7 +141,19 @@ export function bundleProjectForPreview(
     }
   });
 
-  // 5. Serialize HTML and inject Bridge Script
+  // 5. Assign deterministic data-webstudio-id index to all body elements for precision visual inspector & live-editing mapping
+  if (doc.body) {
+    let elementIndex = 0;
+    const assignWebstudioIds = (el: Element) => {
+      el.setAttribute('data-webstudio-id', String(elementIndex++));
+      for (let i = 0; i < el.children.length; i++) {
+        assignWebstudioIds(el.children[i]);
+      }
+    };
+    assignWebstudioIds(doc.body);
+  }
+
+  // 6. Serialize HTML and inject Bridge Script
   const bridgeScript = getIframeBridgeScript(isInspectMode);
   let htmlResult = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
 

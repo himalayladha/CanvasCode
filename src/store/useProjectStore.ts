@@ -399,7 +399,13 @@ export interface ProjectStoreActions {
   setSelectedElement: (element: InspectedElementData | null) => void;
   setHoveredElementInfo: (info: ProjectState['hoveredElementInfo']) => void;
   updateSelectedElementStyle: (property: string, value: string) => void;
-  updateSelectedElementText: (newText: string) => void;
+  updateSelectedElementText: (
+    newText: string,
+    selector?: string,
+    dataWebstudioId?: string,
+    elementId?: string,
+    tagName?: string
+  ) => void;
   updateSelectedElementAttribute: (name: string, value: string) => void;
   addClassToSelectedElement: (className: string) => void;
   removeClassFromSelectedElement: (className: string) => void;
@@ -449,6 +455,90 @@ function pushSnapshot(
     history: updated,
     historyIndex: updated.length - 1,
   };
+}
+
+/**
+ * Strips internal WebStudio preview tracking attributes before serializing to VFS
+ */
+function cleanDocumentHtml(doc: Document): string {
+  doc.querySelectorAll('[data-webstudio-id]').forEach((el) => el.removeAttribute('data-webstudio-id'));
+  doc.querySelectorAll('[contenteditable]').forEach((el) => el.removeAttribute('contenteditable'));
+  const overlay = doc.getElementById('__webstudio_inspect_overlay__');
+  if (overlay) overlay.remove();
+  const bridgeScript = doc.getElementById('__WEBSTUDIO_BRIDGE__');
+  if (bridgeScript) bridgeScript.remove();
+  return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+}
+
+/**
+ * Locates the target DOM node in parsed VFS HTML using preorder traversal index (data-webstudio-id),
+ * with fallbacks to ID, CSS Selector, and tag + text content matching.
+ */
+function findTargetElement(
+  doc: Document,
+  selected: {
+    dataWebstudioId?: string;
+    id?: string;
+    selector?: string;
+    tagName?: string;
+    innerText?: string;
+  }
+): Element | null {
+  if (!doc.body) return null;
+
+  // 1. Check preorder traversal index (data-webstudio-id)
+  if (selected.dataWebstudioId !== undefined && selected.dataWebstudioId !== '') {
+    const targetIndex = parseInt(selected.dataWebstudioId, 10);
+    if (!isNaN(targetIndex) && targetIndex >= 0) {
+      const allElements: Element[] = [];
+      const traverse = (el: Element) => {
+        allElements.push(el);
+        for (let i = 0; i < el.children.length; i++) {
+          traverse(el.children[i]);
+        }
+      };
+      traverse(doc.body);
+
+      if (allElements[targetIndex]) {
+        const candidate = allElements[targetIndex];
+        if (!selected.tagName || candidate.tagName.toLowerCase() === selected.tagName.toLowerCase()) {
+          return candidate;
+        }
+      }
+    }
+  }
+
+  // 2. Locate by ID
+  if (selected.id) {
+    const byId = doc.getElementById(selected.id);
+    if (byId) return byId;
+  }
+
+  // 3. Locate by CSS Selector
+  if (selected.selector) {
+    try {
+      const bySelector = doc.querySelector(selected.selector);
+      if (bySelector) return bySelector;
+    } catch {
+      // Ignore querySelector syntax errors (e.g., from special class names)
+    }
+  }
+
+  // 4. Locate by Tag Name + Text Match
+  if (selected.tagName && selected.innerText) {
+    const tagElements = Array.from(doc.getElementsByTagName(selected.tagName));
+    const targetText = selected.innerText.trim();
+    const match = tagElements.find((el) => el.textContent?.trim() === targetText);
+    if (match) return match;
+  }
+
+  // 5. Single tag fallback
+  if (selected.tagName && selected.tagName !== 'body') {
+    const tagElements = Array.from(doc.getElementsByTagName(selected.tagName));
+    if (tagElements.length === 1) return tagElements[0];
+  }
+
+  return null;
 }
 
 const initialDefaultFiles = createDefaultFiles();
@@ -791,17 +881,12 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlFile.content, 'text/html');
 
-    let targetEl: Element | null = null;
-    try {
-      targetEl = doc.querySelector(selected.selector);
-    } catch {
-      if (selected.id) targetEl = doc.getElementById(selected.id);
-    }
+    const targetEl = findTargetElement(doc, selected);
 
     if (targetEl) {
       const htmlEl = targetEl as HTMLElement;
       htmlEl.style.setProperty(property, value);
-      const updatedHtml = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+      const updatedHtml = cleanDocumentHtml(doc);
       getStore().updateFile(activeHtmlPath, updatedHtml);
 
       setStore((state) => ({
@@ -818,9 +903,18 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
     }
   },
 
-  updateSelectedElementText: (newText: string) => {
+  updateSelectedElementText: (
+    newText: string,
+    selector?: string,
+    dataWebstudioId?: string,
+    elementId?: string,
+    tagName?: string
+  ) => {
     const selected = getStore().selectedElement;
-    if (!selected) return;
+    const targetWebstudioId = dataWebstudioId ?? selected?.dataWebstudioId;
+    const targetSelector = selector ?? selected?.selector;
+    const targetId = elementId ?? selected?.id;
+    const targetTagName = tagName ?? selected?.tagName;
 
     const activeHtmlPath = getStore().previewCurrentPath;
     const htmlFile = getStore().files[activeHtmlPath];
@@ -829,16 +923,17 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlFile.content, 'text/html');
 
-    let targetEl: Element | null = null;
-    try {
-      targetEl = doc.querySelector(selected.selector);
-    } catch {
-      if (selected.id) targetEl = doc.getElementById(selected.id);
-    }
+    const targetEl = findTargetElement(doc, {
+      dataWebstudioId: targetWebstudioId,
+      id: targetId,
+      selector: targetSelector,
+      tagName: targetTagName,
+      innerText: selected?.innerText,
+    });
 
     if (targetEl) {
       targetEl.textContent = newText;
-      const updatedHtml = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+      const updatedHtml = cleanDocumentHtml(doc);
       getStore().updateFile(activeHtmlPath, updatedHtml);
 
       setStore((state) => ({
@@ -860,12 +955,7 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlFile.content, 'text/html');
 
-    let targetEl: Element | null = null;
-    try {
-      targetEl = doc.querySelector(selected.selector);
-    } catch {
-      if (selected.id) targetEl = doc.getElementById(selected.id);
-    }
+    const targetEl = findTargetElement(doc, selected);
 
     if (targetEl) {
       if (value === '') {
@@ -873,7 +963,7 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
       } else {
         targetEl.setAttribute(name, value);
       }
-      const updatedHtml = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+      const updatedHtml = cleanDocumentHtml(doc);
       getStore().updateFile(activeHtmlPath, updatedHtml);
 
       const updatedAttrs = { ...selected.attributes };
@@ -952,12 +1042,7 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlFile.content, 'text/html');
 
-    let targetEl: Element | null = null;
-    try {
-      targetEl = doc.querySelector(selected.selector);
-    } catch {
-      if (selected.id) targetEl = doc.getElementById(selected.id);
-    }
+    const targetEl = findTargetElement(doc, selected);
 
     if (targetEl && targetEl.parentNode) {
       const newEl = doc.createElement(cleanTag);
@@ -971,7 +1056,7 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
       }
 
       targetEl.parentNode.replaceChild(newEl, targetEl);
-      const updatedHtml = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+      const updatedHtml = cleanDocumentHtml(doc);
       getStore().updateFile(activeHtmlPath, updatedHtml);
 
       setStore((state) => ({
@@ -996,12 +1081,7 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlFile.content, 'text/html');
 
-    let targetEl: Element | null = null;
-    try {
-      targetEl = doc.querySelector(selected.selector);
-    } catch {
-      if (selected.id) targetEl = doc.getElementById(selected.id);
-    }
+    const targetEl = findTargetElement(doc, selected);
 
     if (targetEl && targetEl.parentNode) {
       const clone = targetEl.cloneNode(true) as Element;
@@ -1009,7 +1089,7 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
         clone.id = `${clone.id}-copy`;
       }
       targetEl.parentNode.insertBefore(clone, targetEl.nextSibling);
-      const updatedHtml = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+      const updatedHtml = cleanDocumentHtml(doc);
       getStore().updateFile(activeHtmlPath, updatedHtml);
     }
   },
@@ -1025,16 +1105,11 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlFile.content, 'text/html');
 
-    let targetEl: Element | null = null;
-    try {
-      targetEl = doc.querySelector(selected.selector);
-    } catch {
-      if (selected.id) targetEl = doc.getElementById(selected.id);
-    }
+    const targetEl = findTargetElement(doc, selected);
 
     if (targetEl && targetEl.parentNode) {
       targetEl.parentNode.removeChild(targetEl);
-      const updatedHtml = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+      const updatedHtml = cleanDocumentHtml(doc);
       getStore().updateFile(activeHtmlPath, updatedHtml);
       setStore({ selectedElement: null });
     }
@@ -1051,16 +1126,11 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlFile.content, 'text/html');
 
-    let targetEl: Element | null = null;
-    try {
-      targetEl = doc.querySelector(selected.selector);
-    } catch {
-      if (selected.id) targetEl = doc.getElementById(selected.id);
-    }
+    const targetEl = findTargetElement(doc, selected);
 
     if (targetEl && targetEl.parentNode && targetEl.previousElementSibling) {
       targetEl.parentNode.insertBefore(targetEl, targetEl.previousElementSibling);
-      const updatedHtml = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+      const updatedHtml = cleanDocumentHtml(doc);
       getStore().updateFile(activeHtmlPath, updatedHtml);
     }
   },
@@ -1076,16 +1146,11 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlFile.content, 'text/html');
 
-    let targetEl: Element | null = null;
-    try {
-      targetEl = doc.querySelector(selected.selector);
-    } catch {
-      if (selected.id) targetEl = doc.getElementById(selected.id);
-    }
+    const targetEl = findTargetElement(doc, selected);
 
     if (targetEl && targetEl.parentNode && targetEl.nextElementSibling) {
       targetEl.parentNode.insertBefore(targetEl.nextElementSibling, targetEl);
-      const updatedHtml = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+      const updatedHtml = cleanDocumentHtml(doc);
       getStore().updateFile(activeHtmlPath, updatedHtml);
     }
   },
