@@ -285,4 +285,45 @@ describe('useProjectStore VFS', () => {
     toggleCanvasMode();
     expect(useProjectStore.getState().canvasMode).toBe('design');
   });
+
+  it('manages undo and redo history for file and styling changes', () => {
+    const { updateFile, undo, redo, canUndo, canRedo } = useProjectStore.getState();
+
+    // Initial state: cannot undo or redo
+    expect(canUndo()).toBe(false);
+    expect(canRedo()).toBe(false);
+
+    // Make a change
+    const initialContent = useProjectStore.getState().files['index.html'].content;
+    updateFile('index.html', '<!DOCTYPE html><html><body><h1>Version 2</h1></body></html>');
+
+    expect(canUndo()).toBe(true);
+    expect(canRedo()).toBe(false);
+    expect(useProjectStore.getState().files['index.html'].content).toContain('Version 2');
+
+    // Make another change
+    updateFile('index.html', '<!DOCTYPE html><html><body><h1>Version 3</h1></body></html>');
+    expect(useProjectStore.getState().files['index.html'].content).toContain('Version 3');
+
+    // Undo to Version 2
+    undo();
+    expect(useProjectStore.getState().files['index.html'].content).toContain('Version 2');
+    expect(canUndo()).toBe(true);
+    expect(canRedo()).toBe(true);
+
+    // Undo to Version 1 (Initial)
+    undo();
+    expect(useProjectStore.getState().files['index.html'].content).toBe(initialContent);
+    expect(canUndo()).toBe(false);
+    expect(canRedo()).toBe(true);
+
+    // Redo to Version 2
+    redo();
+    expect(useProjectStore.getState().files['index.html'].content).toContain('Version 2');
+
+    // Redo to Version 3
+    redo();
+    expect(useProjectStore.getState().files['index.html'].content).toContain('Version 3');
+    expect(canRedo()).toBe(false);
+  });
 });

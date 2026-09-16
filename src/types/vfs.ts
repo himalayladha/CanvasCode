@@ -92,4 +92,6 @@ export interface ProjectState {
   previewKey: number;
   jumpToCodeTarget: JumpToCodeTarget | null;
   isInspectorPanelOpen: boolean;
+  history: Record<string, VirtualFile>[];
+  historyIndex: number;
 }

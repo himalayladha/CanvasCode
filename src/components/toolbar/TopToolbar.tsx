@@ -10,6 +10,8 @@ import {
   RotateCcw,
   Edit2,
   Check,
+  Undo2,
+  Redo2,
 } from 'lucide-react';
 import { useProjectStore } from '../../store/useProjectStore';
 import { exportProjectToZip, importProjectFromZip, importProjectFromFolder } from '../../services/zipService';
@@ -27,7 +29,14 @@ export const TopToolbar: React.FC = () => {
     consoleLogs,
     isBottomPanelOpen,
     setIsBottomPanelOpen,
+    undo,
+    redo,
+    historyIndex,
+    history,
   } = useProjectStore();
+
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < history.length - 1;
 
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
@@ -189,6 +198,34 @@ export const TopToolbar: React.FC = () => {
         </button>
 
         <div className="h-4 w-[1px] bg-[#3f3f46] mx-1" />
+
+        {/* Undo / Redo */}
+        <div className="flex items-center bg-[#1e1e1e] p-0.5 rounded border border-[#333333]">
+          <button
+            title="Undo (Ctrl+Z / ⌘Z)"
+            disabled={!canUndo}
+            onClick={undo}
+            className={`p-1 rounded transition-colors ${
+              canUndo
+                ? 'text-gray-200 hover:text-white hover:bg-[#37373d]'
+                : 'text-gray-600 cursor-not-allowed'
+            }`}
+          >
+            <Undo2 className="w-3.5 h-3.5" />
+          </button>
+          <button
+            title="Redo (Ctrl+Y / ⌘Shift+Z)"
+            disabled={!canRedo}
+            onClick={redo}
+            className={`p-1 rounded transition-colors ${
+              canRedo
+                ? 'text-gray-200 hover:text-white hover:bg-[#37373d]'
+                : 'text-gray-600 cursor-not-allowed'
+            }`}
+          >
+            <Redo2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
 
         {/* Reset Project */}
         <button

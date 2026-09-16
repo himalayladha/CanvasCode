@@ -39,6 +39,8 @@ export default function App() {
     setIsBottomPanelOpen,
     loadProject,
     restoreFromStorage,
+    undo,
+    redo,
   } = useProjectStore();
 
   const [isDraggingOver, setIsDraggingOver] = useState(false);
@@ -49,6 +51,42 @@ export default function App() {
   useEffect(() => {
     restoreFromStorage();
   }, [restoreFromStorage]);
+
+  // Global Undo / Redo keyboard shortcuts (Ctrl+Z / Cmd+Z / Ctrl+Y / Cmd+Shift+Z)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Allow native undo inside text inputs, textareas, and contentEditables
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+      const isCmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+
+      if (isCmdOrCtrl && !e.altKey) {
+        if (e.key.toLowerCase() === 'z') {
+          e.preventDefault();
+          if (e.shiftKey) {
+            redo();
+          } else {
+            undo();
+          }
+        } else if (e.key.toLowerCase() === 'y') {
+          e.preventDefault();
+          redo();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
 
   // Handle global Drag & Drop
   useEffect(() => {

@@ -419,6 +419,12 @@ export interface ProjectStoreActions {
   setIsBottomPanelOpen: (isOpen: boolean) => void;
   setBottomPanelTab: (tab: 'console' | 'problems') => void;
 
+  // History & Undo / Redo
+  undo: () => void;
+  redo: () => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+
   // Project management
   setProjectName: (name: string) => void;
   loadProject: (files: Record<string, VirtualFile>, projectName?: string) => void;
@@ -427,9 +433,31 @@ export interface ProjectStoreActions {
   restoreFromStorage: () => Promise<boolean>;
 }
 
+const MAX_HISTORY = 50;
+
+function pushSnapshot(
+  history: Record<string, VirtualFile>[],
+  historyIndex: number,
+  newFiles: Record<string, VirtualFile>
+) {
+  const truncated = history.slice(0, historyIndex + 1);
+  const updated = [...truncated, newFiles];
+  if (updated.length > MAX_HISTORY) {
+    updated.shift();
+  }
+  return {
+    history: updated,
+    historyIndex: updated.length - 1,
+  };
+}
+
+const initialDefaultFiles = createDefaultFiles();
+
 export const useProjectStore = create<ProjectState & ProjectStoreActions>((setStore, getStore) => ({
   projectName: 'My Web Project',
-  files: createDefaultFiles(),
+  files: initialDefaultFiles,
+  history: [initialDefaultFiles],
+  historyIndex: 0,
   activeFilePath: 'index.html',
   openTabs: ['index.html', 'css/style.css'],
   entryHtmlPath: 'index.html',
@@ -445,6 +473,45 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
   previewKey: 0,
   jumpToCodeTarget: null,
   isInspectorPanelOpen: true,
+
+  undo: () => {
+    const state = getStore();
+    if (state.historyIndex > 0) {
+      const nextIndex = state.historyIndex - 1;
+      const restoredFiles = state.history[nextIndex];
+      setStore({
+        files: restoredFiles,
+        historyIndex: nextIndex,
+        previewKey: state.previewKey + 1,
+        selectedElement: null,
+      });
+      getStore().persistToStorage();
+    }
+  },
+
+  redo: () => {
+    const state = getStore();
+    if (state.historyIndex < state.history.length - 1) {
+      const nextIndex = state.historyIndex + 1;
+      const restoredFiles = state.history[nextIndex];
+      setStore({
+        files: restoredFiles,
+        historyIndex: nextIndex,
+        previewKey: state.previewKey + 1,
+        selectedElement: null,
+      });
+      getStore().persistToStorage();
+    }
+  },
+
+  canUndo: () => {
+    return getStore().historyIndex > 0;
+  },
+
+  canRedo: () => {
+    const state = getStore();
+    return state.historyIndex < state.history.length - 1;
+  },
 
   addFile: (path: string, content = '', isBinary = false, blob?: Blob) => {
     const normalized = normalizePath(path);
@@ -473,10 +540,12 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
     setStore((state) => {
       const files = { ...state.files, [normalized]: newFile };
       const openTabs = state.openTabs.includes(normalized) ? state.openTabs : [...state.openTabs, normalized];
+      const historyUpdate = pushSnapshot(state.history, state.historyIndex, files);
       return {
         files,
         openTabs,
         activeFilePath: normalized,
+        ...historyUpdate,
       };
     });
 
@@ -488,16 +557,21 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
     const existing = getStore().files[normalized];
     if (!existing) return;
 
-    setStore((state) => ({
-      files: {
+    setStore((state) => {
+      const files = {
         ...state.files,
         [normalized]: {
           ...existing,
           content,
           updatedAt: Date.now(),
         },
-      },
-    }));
+      };
+      const historyUpdate = pushSnapshot(state.history, state.historyIndex, files);
+      return {
+        files,
+        ...historyUpdate,
+      };
+    });
 
     getStore().persistToStorage();
   },
@@ -524,6 +598,7 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
       const activeFilePath = state.activeFilePath === oldNorm ? newNorm : state.activeFilePath;
       const previewCurrentPath = state.previewCurrentPath === oldNorm ? newNorm : state.previewCurrentPath;
       const entryHtmlPath = state.entryHtmlPath === oldNorm ? newNorm : state.entryHtmlPath;
+      const historyUpdate = pushSnapshot(state.history, state.historyIndex, newFiles);
 
       return {
         files: newFiles,
@@ -531,6 +606,7 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
         activeFilePath,
         previewCurrentPath,
         entryHtmlPath,
+        ...historyUpdate,
       };
     });
 
@@ -554,11 +630,13 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
       if (activeFilePath === normalized) {
         activeFilePath = openTabs.length > 0 ? openTabs[openTabs.length - 1] : Object.keys(newFiles)[0] || null;
       }
+      const historyUpdate = pushSnapshot(state.history, state.historyIndex, newFiles);
 
       return {
         files: newFiles,
         openTabs,
         activeFilePath,
+        ...historyUpdate,
       };
     });
 
@@ -587,11 +665,13 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
       if (activeFilePath && deletedPaths.includes(activeFilePath)) {
         activeFilePath = openTabs.length > 0 ? openTabs[0] : Object.keys(newFiles)[0] || null;
       }
+      const historyUpdate = pushSnapshot(state.history, state.historyIndex, newFiles);
 
       return {
         files: newFiles,
         openTabs,
         activeFilePath,
+        ...historyUpdate,
       };
     });
 
@@ -1093,6 +1173,8 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
     setStore({
       projectName,
       files,
+      history: [files],
+      historyIndex: 0,
       activeFilePath: entryHtml || null,
       openTabs: entryHtml ? [entryHtml] : fileKeys.slice(0, 3),
       entryHtmlPath: entryHtml || 'index.html',
@@ -1108,9 +1190,12 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
   },
 
   resetProject: () => {
+    const defaultFiles = createDefaultFiles();
     setStore({
       projectName: 'My Web Project',
-      files: createDefaultFiles(),
+      files: defaultFiles,
+      history: [defaultFiles],
+      historyIndex: 0,
       activeFilePath: 'index.html',
       openTabs: ['index.html', 'css/style.css'],
       entryHtmlPath: 'index.html',
@@ -1175,6 +1260,8 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
       setStore({
         projectName: saved.projectName || 'Restored Project',
         files,
+        history: [files],
+        historyIndex: 0,
         activeFilePath: saved.activeFilePath || Object.keys(files)[0] || null,
         openTabs: saved.openTabs || Object.keys(files).slice(0, 3),
         entryHtmlPath: saved.entryHtmlPath || 'index.html',
