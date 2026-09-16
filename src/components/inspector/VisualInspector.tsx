@@ -8,7 +8,6 @@ import {
   AlignJustify,
   Layers,
   X,
-  Sparkles,
   MousePointerClick,
 } from 'lucide-react';
 import { InspectedElementData } from '../../types/vfs';

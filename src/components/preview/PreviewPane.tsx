@@ -5,7 +5,6 @@ import {
   Smartphone,
   Maximize2,
   RotateCw,
-  Eye,
   ExternalLink,
   ChevronDown,
   Globe,
@@ -40,7 +39,7 @@ export const PreviewPane: React.FC = () => {
     return Object.keys(files).filter((path) => path.endsWith('.html') || path.endsWith('.htm'));
   }, [files]);
 
-  // Debounced preview generation (300ms)
+  // Debounced preview generation (250ms)
   useEffect(() => {
     const timer = setTimeout(() => {
       const bundled = bundleProjectForPreview(files, previewCurrentPath, isInspectMode);
@@ -48,7 +47,7 @@ export const PreviewPane: React.FC = () => {
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [files, previewCurrentPath, previewKey]);
+  }, [files, previewCurrentPath, previewKey, isInspectMode]);
 
   // Sync inspect mode to iframe
   useEffect(() => {

@@ -1,7 +1,6 @@
 import React from 'react';
-import { X, Sparkles, LayoutTemplate, ArrowRight } from 'lucide-react';
+import { X, LayoutTemplate, ArrowRight } from 'lucide-react';
 import { STARTER_TEMPLATES, ProjectTemplate } from '../../data/starterTemplates';
-import { VirtualFile } from '../../types/vfs';
 
 interface TemplateModalProps {
   isOpen: boolean;

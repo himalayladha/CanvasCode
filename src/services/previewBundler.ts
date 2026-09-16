@@ -7,7 +7,7 @@ import { IFRAME_BRIDGE_SCRIPT } from './iframeBridgeScript';
  */
 export function resolveCssUrls(cssContent: string, cssFilePath: string, files: Record<string, VirtualFile>): string {
   // Replace url('...') or url("...") or url(...)
-  return cssContent.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/gi, (match, quote, urlPath) => {
+  return cssContent.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/gi, (match, _quote, urlPath) => {
     if (/^(https?:|\/\/|data:|blob:)/i.test(urlPath.trim())) {
       return match;
     }

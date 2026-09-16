@@ -1,31 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import JSZip from 'jszip';
-import { exportProjectToZip, importProjectFromZip } from './zipService';
-import { VirtualFile } from '../types/vfs';
+import { importProjectFromZip } from './zipService';
 
 describe('zipService', () => {
   it('exports and imports project files preserving folder structure and contents', async () => {
-    const mockFiles: Record<string, VirtualFile> = {
-      'index.html': {
-        id: '1',
-        path: 'index.html',
-        name: 'index.html',
-        type: 'file',
-        content: '<h1>Hello ZIP</h1>',
-        isBinary: false,
-        updatedAt: 1,
-      },
-      'css/main.css': {
-        id: '2',
-        path: 'css/main.css',
-        name: 'main.css',
-        type: 'file',
-        content: 'body { margin: 0; }',
-        isBinary: false,
-        updatedAt: 1,
-      },
-    };
-
     // Create a zip directly with JSZip to simulate user uploaded zip
     const zip = new JSZip();
     zip.file('index.html', '<h1>Hello ZIP</h1>');

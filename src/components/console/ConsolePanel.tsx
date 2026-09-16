@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Terminal, AlertTriangle, AlertCircle, Info, Trash2, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Terminal, AlertTriangle, AlertCircle, Info, Trash2, X } from 'lucide-react';
 import { ConsoleLogMessage } from '../../types/vfs';
 
 interface ConsolePanelProps {

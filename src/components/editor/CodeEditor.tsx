@@ -16,15 +16,27 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange }) => {
     editorRef.current = editor;
 
     // Configure Monaco HTML / CSS / JS formatting & emmet options
-    monaco.languages.html.htmlDefaults.setOptions({
-      format: {
-        wrapLineLength: 120,
-        unformatted: 'b, em, i, span',
-      },
-      suggest: {
-        html5: true,
-      },
-    });
+    if (monaco.languages.html?.htmlDefaults) {
+      monaco.languages.html.htmlDefaults.setOptions({
+        format: {
+          wrapLineLength: 120,
+          unformatted: 'b, em, i, span',
+          tabSize: 2,
+          insertSpaces: true,
+          contentUnformatted: 'pre, code',
+          indentInnerHtml: false,
+          preserveNewLines: true,
+          maxPreserveNewLines: 2,
+          indentHandlebars: false,
+          endWithNewline: false,
+          extraLiners: 'head, body, /html',
+          wrapAttributes: 'auto',
+        },
+        suggest: {
+          html5: true,
+        },
+      });
+    }
 
     // Add format command shortcut Shift+Alt+F
     editor.addCommand(monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF, () => {

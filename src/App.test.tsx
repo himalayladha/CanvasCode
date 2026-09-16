@@ -1,11 +1,14 @@
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
-import React from 'react';
 import App from './App';
 
-describe('App Scaffolding', () => {
-  it('renders header with app title', () => {
+describe('App Integration', () => {
+  it('renders WebStudio toolbar, explorer, editor and live preview header', () => {
     render(<App />);
-    expect(screen.getByText('HTML Project Studio')).toBeInTheDocument();
+    expect(screen.getByText('WebStudio')).toBeInTheDocument();
+    expect(screen.getByText('Explorer')).toBeInTheDocument();
+    expect(screen.getByText('Templates')).toBeInTheDocument();
+    expect(screen.getByText('Export ZIP')).toBeInTheDocument();
+    expect(screen.getByText(/Inspect Mode/i)).toBeInTheDocument();
   });
 });
