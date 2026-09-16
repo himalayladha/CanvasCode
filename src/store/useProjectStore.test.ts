@@ -478,4 +478,132 @@ describe('useProjectStore VFS', () => {
     state = useProjectStore.getState();
     expect(state.selectedElement).toBeNull();
   });
+
+  it('saves and extracts styles directly into CSS stylesheets via saveStylesToCssFile', () => {
+    const { setSelectedElement, saveStylesToCssFile } = useProjectStore.getState();
+
+    setSelectedElement({
+      tagName: 'h1',
+      id: 'main-heading',
+      classList: ['hero-title'],
+      selector: '#main-heading',
+      innerText: 'Design and build web projects in real-time.',
+      attributes: { id: 'main-heading', class: 'hero-title', style: 'color: red;' },
+      computedStyles: {
+        color: 'red',
+        backgroundColor: '',
+        fontSize: '3rem',
+        fontWeight: '800',
+        textAlign: '',
+        margin: '',
+        padding: '',
+        border: '',
+        borderRadius: '',
+        width: '600px',
+        height: '60px',
+        display: 'block',
+      },
+      boxModel: {
+        marginTop: '0px',
+        marginRight: '0px',
+        marginBottom: '0px',
+        marginLeft: '0px',
+        paddingTop: '0px',
+        paddingRight: '0px',
+        paddingBottom: '0px',
+        paddingLeft: '0px',
+      },
+      rect: { top: 0, left: 0, width: 600, height: 60 },
+    });
+
+    saveStylesToCssFile('css/style.css', '.hero-title', { color: '#6366f1', 'font-weight': '900' }, true);
+
+    let state = useProjectStore.getState();
+    expect(state.files['css/style.css'].content).toContain('color: #6366f1;');
+    expect(state.files['css/style.css'].content).toContain('font-weight: 900;');
+
+    // Test saving new rule into a brand new stylesheet
+    saveStylesToCssFile('css/custom.css', '.custom-badge', { padding: '8px 16px', 'background-color': '#4f46e5' }, false);
+    state = useProjectStore.getState();
+    expect(state.files['css/custom.css']).toBeDefined();
+    expect(state.files['css/custom.css'].content).toContain('.custom-badge');
+    expect(state.files['css/custom.css'].content).toContain('padding: 8px 16px;');
+  });
+
+  it('jumps directly to matching CSS rules and JavaScript references in code', () => {
+    const { jumpToCssRuleInCode, jumpToJsReferenceInCode } = useProjectStore.getState();
+
+    // Jump to CSS rule
+    jumpToCssRuleInCode('.hero-title');
+    let state = useProjectStore.getState();
+    expect(state.activeFilePath).toBe('css/style.css');
+    expect(state.jumpToCodeTarget?.filePath).toBe('css/style.css');
+    expect(state.jumpToCodeTarget?.line).toBeGreaterThan(1);
+
+    // Jump to JS reference
+    jumpToJsReferenceInCode('explore-btn');
+    state = useProjectStore.getState();
+    expect(state.activeFilePath).toBe('js/app.js');
+    expect(state.jumpToCodeTarget?.filePath).toBe('js/app.js');
+    expect(state.jumpToCodeTarget?.line).toBeGreaterThan(1);
+  });
+
+  it('injects stylesheet links and script tags into active HTML file', () => {
+    const { setPreviewCurrentPath, injectResourceLinkToActiveHtml } = useProjectStore.getState();
+
+    setPreviewCurrentPath('about.html');
+    injectResourceLinkToActiveHtml('css', 'css/style.css');
+    injectResourceLinkToActiveHtml('js', 'js/app.js');
+
+    const state = useProjectStore.getState();
+    expect(state.files['about.html'].content).toContain('<link rel="stylesheet" href="css/style.css">');
+    expect(state.files['about.html'].content).toContain('<script src="js/app.js">');
+  });
+
+  it('edits elements visually on any HTML page (e.g. about.html)', () => {
+    const { setPreviewCurrentPath, setSelectedElement, updateSelectedElementText, updateSelectedElementStyle } = useProjectStore.getState();
+
+    setPreviewCurrentPath('about.html');
+
+    setSelectedElement({
+      tagName: 'h1',
+      id: '',
+      classList: ['section-title'],
+      selector: '.section-title',
+      innerText: 'About WebStudio',
+      attributes: { class: 'section-title' },
+      computedStyles: {
+        color: '',
+        backgroundColor: '',
+        fontSize: '2.5rem',
+        fontWeight: '800',
+        textAlign: '',
+        margin: '',
+        padding: '',
+        border: '',
+        borderRadius: '',
+        width: '400px',
+        height: '40px',
+        display: 'block',
+      },
+      boxModel: {
+        marginTop: '0px',
+        marginRight: '0px',
+        marginBottom: '0px',
+        marginLeft: '0px',
+        paddingTop: '0px',
+        paddingRight: '0px',
+        paddingBottom: '0px',
+        paddingLeft: '0px',
+      },
+      rect: { top: 0, left: 0, width: 400, height: 40 },
+    });
+
+    updateSelectedElementText('About Our Amazing Platform');
+    updateSelectedElementStyle('color', '#38bdf8');
+
+    const state = useProjectStore.getState();
+    expect(state.files['about.html'].content).toContain('About Our Amazing Platform');
+    expect(state.files['about.html'].content).toContain('color: rgb(56, 189, 248)');
+  });
 });

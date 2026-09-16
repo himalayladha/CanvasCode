@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Sliders,
   Type,
@@ -14,6 +14,10 @@ import {
   Trash2,
   ArrowUp,
   ArrowDown,
+  FileCode,
+  Check,
+  Link2,
+  Sparkles,
 } from 'lucide-react';
 import { InspectedElementData } from '../../types/vfs';
 import { ColorPickerInput } from './ColorPickerInput';
@@ -21,6 +25,7 @@ import { BoxModelControl } from './BoxModelControl';
 import { ClassManager } from './ClassManager';
 import { AttributeEditor } from './AttributeEditor';
 import { LayoutControl } from './LayoutControl';
+import { useProjectStore } from '../../store/useProjectStore';
 
 interface VisualInspectorProps {
   selectedElement: InspectedElementData | null;
@@ -35,6 +40,15 @@ interface VisualInspectorProps {
   onDuplicateElement?: () => void;
   onDeleteElement?: () => void;
   onJumpToCode?: () => void;
+  onJumpToCss?: (selector: string) => void;
+  onJumpToJs?: (idOrSelector: string) => void;
+  onSaveStylesToCss?: (
+    cssFilePath: string,
+    selector: string,
+    styles: Record<string, string>,
+    removeInlineStylesFromElement?: boolean
+  ) => void;
+  onInjectResource?: (resourceType: 'css' | 'js', resourcePath: string) => void;
   onClose: () => void;
 }
 
@@ -51,8 +65,35 @@ export const VisualInspector: React.FC<VisualInspectorProps> = ({
   onDuplicateElement,
   onDeleteElement,
   onJumpToCode,
+  onJumpToCss,
+  onJumpToJs,
+  onSaveStylesToCss,
+  onInjectResource,
   onClose,
 }) => {
+  const { files, previewCurrentPath } = useProjectStore();
+
+  const [targetCssFile, setTargetCssFile] = useState<string>('css/style.css');
+  const [cssSelectorInput, setCssSelectorInput] = useState<string>('');
+  const [clearInlinesOnSave, setClearInlinesOnSave] = useState<boolean>(true);
+  const [savedFeedback, setSavedFeedback] = useState<string | null>(null);
+
+  // Available CSS files in project
+  const cssFiles = Object.keys(files).filter((k) => k.endsWith('.css'));
+
+  // Update default CSS selector input when selectedElement changes
+  useEffect(() => {
+    if (selectedElement) {
+      if (selectedElement.classList.length > 0) {
+        setCssSelectorInput(`.${selectedElement.classList[0]}`);
+      } else if (selectedElement.id) {
+        setCssSelectorInput(`#${selectedElement.id}`);
+      } else {
+        setCssSelectorInput(`.${selectedElement.tagName.toLowerCase()}-custom`);
+      }
+    }
+  }, [selectedElement?.id, selectedElement?.classList]);
+
   if (!selectedElement) {
     return (
       <div className="w-80 h-full bg-[#181818] border-l border-[#333333] flex flex-col items-center justify-center p-6 text-center text-xs text-gray-500 select-none">
@@ -70,6 +111,33 @@ export const VisualInspector: React.FC<VisualInspectorProps> = ({
   const fontSizeNum = parseInt(computedStyles.fontSize || '16', 10) || 16;
   const borderRadiusNum = parseInt(computedStyles.borderRadius || '0', 10) || 0;
 
+  const handleSaveToCss = () => {
+    if (!onSaveStylesToCss || !cssSelectorInput.trim()) return;
+
+    // Extract non-empty custom / computed styles
+    const stylesToSave: Record<string, string> = {};
+    if (computedStyles.color) stylesToSave['color'] = computedStyles.color;
+    if (computedStyles.backgroundColor && computedStyles.backgroundColor !== 'rgba(0, 0, 0, 0)' && computedStyles.backgroundColor !== 'transparent') {
+      stylesToSave['background-color'] = computedStyles.backgroundColor;
+    }
+    if (computedStyles.fontSize) stylesToSave['font-size'] = computedStyles.fontSize;
+    if (computedStyles.fontWeight) stylesToSave['font-weight'] = computedStyles.fontWeight;
+    if (computedStyles.textAlign && computedStyles.textAlign !== 'start') stylesToSave['text-align'] = computedStyles.textAlign;
+    if (computedStyles.borderRadius && computedStyles.borderRadius !== '0px') stylesToSave['border-radius'] = computedStyles.borderRadius;
+    if (computedStyles.display && computedStyles.display !== 'block') stylesToSave['display'] = computedStyles.display;
+    if (computedStyles.gap && computedStyles.gap !== '0px') stylesToSave['gap'] = computedStyles.gap;
+
+    onSaveStylesToCss(targetCssFile, cssSelectorInput.trim(), stylesToSave, clearInlinesOnSave);
+
+    setSavedFeedback(`Saved to ${targetCssFile}!`);
+    setTimeout(() => setSavedFeedback(null), 3000);
+  };
+
+  // Check if active HTML links css/style.css or js/app.js
+  const activeHtmlContent = files[previewCurrentPath]?.content || '';
+  const hasCssLink = activeHtmlContent.includes('style.css') || activeHtmlContent.includes('.css');
+  const hasJsLink = activeHtmlContent.includes('app.js') || activeHtmlContent.includes('.js');
+
   return (
     <div className="w-80 h-full bg-[#181818] border-l border-[#333333] flex flex-col select-none overflow-y-auto">
       {/* Header */}
@@ -79,22 +147,49 @@ export const VisualInspector: React.FC<VisualInspectorProps> = ({
           <span className="font-semibold text-white text-xs">Visual Inspector</span>
         </div>
         <div className="flex items-center gap-1">
-          {onJumpToCode && (
-            <button
-              title="Jump to element line in Monaco code editor"
-              onClick={onJumpToCode}
-              className="p-1 hover:bg-[#333333] rounded text-[#007acc] hover:text-blue-300 transition-colors flex items-center gap-1 text-[11px] font-medium"
-            >
-              <Code2 className="w-3.5 h-3.5" />
-              <span>Code</span>
-            </button>
-          )}
           <button
             onClick={onClose}
             className="p-1 hover:bg-[#333333] rounded text-gray-400 hover:text-white transition-colors"
           >
             <X className="w-3.5 h-3.5" />
           </button>
+        </div>
+      </div>
+
+      {/* Tri-target Jump to Code Bar */}
+      <div className="flex items-center justify-between px-3 py-1.5 bg-[#1f1f20] border-b border-[#333333] text-[11px]">
+        <span className="text-gray-400 flex items-center gap-1 font-medium">
+          <Code2 className="w-3 h-3 text-[#007acc]" />
+          <span>Jump to:</span>
+        </span>
+        <div className="flex items-center gap-1">
+          {onJumpToCode && (
+            <button
+              title="Jump to element in active HTML file"
+              onClick={onJumpToCode}
+              className="px-1.5 py-0.5 bg-[#2a2a2b] hover:bg-[#37373d] text-blue-300 rounded border border-[#3f3f46] transition-colors font-medium text-[10px]"
+            >
+              📄 HTML
+            </button>
+          )}
+          {onJumpToCss && (
+            <button
+              title="Jump to matching class/ID rule in stylesheet"
+              onClick={() => onJumpToCss(classList[0] ? `.${classList[0]}` : (id ? `#${id}` : tagName))}
+              className="px-1.5 py-0.5 bg-[#2a2a2b] hover:bg-[#37373d] text-purple-300 rounded border border-[#3f3f46] transition-colors font-medium text-[10px]"
+            >
+              🎨 CSS
+            </button>
+          )}
+          {onJumpToJs && (
+            <button
+              title="Jump to element ID reference in JavaScript"
+              onClick={() => onJumpToJs(id || classList[0] || tagName)}
+              className="px-1.5 py-0.5 bg-[#2a2a2b] hover:bg-[#37373d] text-amber-300 rounded border border-[#3f3f46] transition-colors font-medium text-[10px]"
+            >
+              ⚡ JS
+            </button>
+          )}
         </div>
       </div>
 
@@ -368,6 +463,106 @@ export const VisualInspector: React.FC<VisualInspectorProps> = ({
           opacity={computedStyles.opacity}
           onUpdateStyle={onUpdateStyle}
         />
+
+        {/* Save to CSS Stylesheet Section */}
+        {onSaveStylesToCss && (
+          <div className="space-y-2.5 pt-2 border-t border-[#333333] bg-[#222224] p-2.5 rounded border border-[#38383a]">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-purple-300 uppercase tracking-wider">
+                <FileCode className="w-3.5 h-3.5 text-purple-400" />
+                <span>Save to CSS File</span>
+              </div>
+              <Sparkles className="w-3 h-3 text-amber-400" />
+            </div>
+
+            {/* Target Stylesheet File */}
+            <div className="space-y-1">
+              <span className="text-[10px] text-gray-400">Target Stylesheet:</span>
+              <select
+                value={targetCssFile}
+                onChange={(e) => setTargetCssFile(e.target.value)}
+                className="w-full bg-[#181818] border border-[#3f3f46] focus:border-[#007acc] rounded px-2 py-1 text-[11px] text-white font-mono outline-none"
+              >
+                {cssFiles.length > 0 ? (
+                  cssFiles.map((path) => (
+                    <option key={path} value={path}>
+                      {path}
+                    </option>
+                  ))
+                ) : (
+                  <option value="css/style.css">css/style.css (new)</option>
+                )}
+              </select>
+            </div>
+
+            {/* Target Selector / Class Name */}
+            <div className="space-y-1">
+              <span className="text-[10px] text-gray-400">CSS Selector / Class:</span>
+              <input
+                type="text"
+                value={cssSelectorInput}
+                onChange={(e) => setCssSelectorInput(e.target.value)}
+                placeholder=".my-custom-class"
+                className="w-full bg-[#181818] border border-[#3f3f46] focus:border-[#007acc] rounded px-2 py-1 text-[11px] text-white font-mono outline-none"
+              />
+            </div>
+
+            {/* Clear inline styles checkbox */}
+            <label className="flex items-center gap-1.5 text-[10px] text-gray-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={clearInlinesOnSave}
+                onChange={(e) => setClearInlinesOnSave(e.target.checked)}
+                className="accent-[#007acc] rounded cursor-pointer"
+              />
+              <span>Clear inline style attribute after saving</span>
+            </label>
+
+            {/* Save Button */}
+            <button
+              onClick={handleSaveToCss}
+              className="w-full py-1.5 bg-gradient-to-r from-[#007acc] to-indigo-600 hover:from-[#0069aa] hover:to-indigo-700 text-white font-semibold rounded text-[11px] flex items-center justify-center gap-1.5 transition-all shadow-sm"
+            >
+              <FileCode className="w-3.5 h-3.5" />
+              <span>Extract & Save to Stylesheet</span>
+            </button>
+
+            {savedFeedback && (
+              <div className="flex items-center gap-1 text-[11px] text-emerald-400 bg-emerald-950/60 p-1.5 rounded border border-emerald-500/30 animate-in fade-in">
+                <Check className="w-3 h-3" />
+                <span>{savedFeedback}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Quick Resource Linking (if missing) */}
+        {onInjectResource && (!hasCssLink || !hasJsLink) && (
+          <div className="pt-2 border-t border-[#333333] space-y-1.5">
+            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+              <Link2 className="w-3 h-3 text-blue-400" />
+              <span>Resource Linking</span>
+            </span>
+
+            {!hasCssLink && (
+              <button
+                onClick={() => onInjectResource('css', 'css/style.css')}
+                className="w-full text-left px-2 py-1 bg-[#1e1e1e] hover:bg-[#2e2e2e] border border-blue-500/30 text-blue-300 rounded text-[10px] transition-colors flex items-center justify-between"
+              >
+                <span>+ Link <code>css/style.css</code> to &lt;head&gt;</span>
+              </button>
+            )}
+
+            {!hasJsLink && (
+              <button
+                onClick={() => onInjectResource('js', 'js/app.js')}
+                className="w-full text-left px-2 py-1 bg-[#1e1e1e] hover:bg-[#2e2e2e] border border-amber-500/30 text-amber-300 rounded text-[10px] transition-colors flex items-center justify-between"
+              >
+                <span>+ Link <code>js/app.js</code> to &lt;body&gt;</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

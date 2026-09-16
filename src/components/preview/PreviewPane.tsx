@@ -163,7 +163,10 @@ export const PreviewPane: React.FC = () => {
           <div className="relative">
             <select
               value={previewCurrentPath}
-              onChange={(e) => setPreviewCurrentPath(e.target.value)}
+              onChange={(e) => {
+                setPreviewCurrentPath(e.target.value);
+                setActiveFile(e.target.value);
+              }}
               className="bg-[#1e1e1e] text-white border border-[#333333] hover:border-[#555] rounded px-2 py-1 pr-6 text-xs appearance-none font-medium cursor-pointer focus:outline-none focus:border-[#007acc]"
             >
               {htmlFiles.map((path) => (

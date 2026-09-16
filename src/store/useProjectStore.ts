@@ -415,7 +415,18 @@ export interface ProjectStoreActions {
   moveSelectedElementUp: () => void;
   moveSelectedElementDown: () => void;
   jumpToSelectedElementInCode: () => void;
+  jumpToCssRuleInCode: (selector: string) => void;
+  jumpToJsReferenceInCode: (idOrSelector: string) => void;
   clearJumpToCodeTarget: () => void;
+
+  // CSS Stylesheet & Resource Injection
+  saveStylesToCssFile: (
+    cssFilePath: string,
+    selector: string,
+    styles: Record<string, string>,
+    removeInlineStylesFromElement?: boolean
+  ) => void;
+  injectResourceLinkToActiveHtml: (resourceType: 'css' | 'js', resourcePath: string) => void;
 
   // Preview & console
   setViewportMode: (mode: ViewportMode) => void;
@@ -1191,8 +1202,235 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
     });
   },
 
+  jumpToCssRuleInCode: (selector: string) => {
+    const files = getStore().files;
+    const cleanSelector = selector.trim();
+    if (!cleanSelector) return;
+
+    // Search for matching CSS files (prefer css/style.css, then any .css)
+    const cssFileKeys = Object.keys(files).filter((k) => k.endsWith('.css'));
+    if (cssFileKeys.length === 0) return;
+
+    let targetCssPath = cssFileKeys.find((k) => k === 'css/style.css') || cssFileKeys[0];
+    let targetLine = 1;
+
+    for (const cssPath of cssFileKeys) {
+      const content = files[cssPath]?.content || '';
+      const lines = content.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.includes(cleanSelector) || (cleanSelector.startsWith('.') && line.includes(cleanSelector.substring(1)))) {
+          targetCssPath = cssPath;
+          targetLine = i + 1;
+          break;
+        }
+      }
+      if (targetLine > 1) break;
+    }
+
+    getStore().setActiveFile(targetCssPath);
+    setStore({
+      jumpToCodeTarget: {
+        filePath: targetCssPath,
+        line: targetLine,
+        selector: cleanSelector,
+      },
+    });
+  },
+
+  jumpToJsReferenceInCode: (idOrSelector: string) => {
+    const files = getStore().files;
+    const cleanTarget = idOrSelector.replace(/^[#.]/, '').trim();
+    if (!cleanTarget) return;
+
+    const jsFileKeys = Object.keys(files).filter((k) => k.endsWith('.js') || k.endsWith('.ts'));
+    if (jsFileKeys.length === 0) return;
+
+    let targetJsPath = jsFileKeys.find((k) => k === 'js/app.js') || jsFileKeys[0];
+    let targetLine = 1;
+
+    for (const jsPath of jsFileKeys) {
+      const content = files[jsPath]?.content || '';
+      const lines = content.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.includes(cleanTarget) || line.includes(`'${cleanTarget}'`) || line.includes(`"${cleanTarget}"`)) {
+          targetJsPath = jsPath;
+          targetLine = i + 1;
+          break;
+        }
+      }
+      if (targetLine > 1) break;
+    }
+
+    getStore().setActiveFile(targetJsPath);
+    setStore({
+      jumpToCodeTarget: {
+        filePath: targetJsPath,
+        line: targetLine,
+        selector: idOrSelector,
+      },
+    });
+  },
+
   clearJumpToCodeTarget: () => {
     setStore({ jumpToCodeTarget: null });
+  },
+
+  saveStylesToCssFile: (
+    cssFilePath: string,
+    selector: string,
+    styles: Record<string, string>,
+    removeInlineStylesFromElement = false
+  ) => {
+    const cleanCssPath = normalizePath(cssFilePath) || 'css/style.css';
+    const cleanSelector = selector.trim();
+    if (!cleanSelector || Object.keys(styles).length === 0) return;
+
+    const existingCss = getStore().files[cleanCssPath]?.content ?? '';
+
+    // Format CSS property lines
+    const propLines = Object.entries(styles)
+      .filter(([_, val]) => val && val.trim() !== '')
+      .map(([prop, val]) => `  ${prop}: ${val};`);
+
+    if (propLines.length === 0) return;
+
+    // Check if selector exists in css file
+    const escapedSelector = cleanSelector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const selectorRegex = new RegExp(`(${escapedSelector}\\s*\\{)([^}]*)(\\})`, 'm');
+
+    let updatedCss = '';
+    if (selectorRegex.test(existingCss)) {
+      // Merge properties into existing rule block
+      updatedCss = existingCss.replace(selectorRegex, (_match, prefix, existingProps, suffix) => {
+        const propMap = new Map<string, string>();
+
+        // Parse existing props
+        existingProps.split(';').forEach((line: string) => {
+          const colonIdx = line.indexOf(':');
+          if (colonIdx !== -1) {
+            const k = line.substring(0, colonIdx).trim();
+            const v = line.substring(colonIdx + 1).trim();
+            if (k && v) propMap.set(k, v);
+          }
+        });
+
+        // Add / overwrite with new styles
+        Object.entries(styles).forEach(([k, v]) => {
+          if (v && v.trim() !== '') {
+            propMap.set(k, v.trim());
+          }
+        });
+
+        const mergedLines = Array.from(propMap.entries())
+          .map(([k, v]) => `  ${k}: ${v};`)
+          .join('\n');
+
+        return `${prefix}\n${mergedLines}\n${suffix}`;
+      });
+    } else {
+      // Append new rule block
+      const newBlock = `\n\n${cleanSelector} {\n${propLines.join('\n')}\n}`;
+      updatedCss = existingCss.trimEnd() + newBlock + '\n';
+    }
+
+    // Ensure CSS file exists in store
+    if (!getStore().files[cleanCssPath]) {
+      getStore().addFile(cleanCssPath, updatedCss, false);
+    } else {
+      getStore().updateFile(cleanCssPath, updatedCss);
+    }
+
+    // Optionally remove inline styles and/or add class to the selected HTML element
+    const selected = getStore().selectedElement;
+    if (selected) {
+      const activeHtmlPath = getStore().previewCurrentPath;
+      const htmlFile = getStore().files[activeHtmlPath];
+      if (htmlFile) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlFile.content, 'text/html');
+        const targetEl = findTargetElement(doc, selected);
+
+        if (targetEl) {
+          const htmlEl = targetEl as HTMLElement;
+
+          // If selector is a class like ".hero-title", ensure element has this class
+          if (cleanSelector.startsWith('.')) {
+            const className = cleanSelector.substring(1).trim();
+            if (className && !targetEl.classList.contains(className)) {
+              targetEl.classList.add(className);
+            }
+          }
+
+          if (removeInlineStylesFromElement) {
+            Object.keys(styles).forEach((prop) => {
+              htmlEl.style.removeProperty(prop);
+            });
+            if (htmlEl.getAttribute('style') === '') {
+              htmlEl.removeAttribute('style');
+            }
+          }
+
+          const updatedHtml = cleanDocumentHtml(doc);
+          getStore().updateFile(activeHtmlPath, updatedHtml);
+
+          // Update store selectedElement state
+          const updatedClassList = Array.from(targetEl.classList);
+          setStore((state) => ({
+            selectedElement: state.selectedElement
+              ? {
+                  ...state.selectedElement,
+                  classList: updatedClassList,
+                  attributes: {
+                    ...state.selectedElement.attributes,
+                    class: updatedClassList.join(' '),
+                  },
+                }
+              : null,
+          }));
+        }
+      }
+    }
+  },
+
+  injectResourceLinkToActiveHtml: (resourceType: 'css' | 'js', resourcePath: string) => {
+    const activeHtmlPath = getStore().previewCurrentPath;
+    const htmlFile = getStore().files[activeHtmlPath];
+    if (!htmlFile) return;
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlFile.content, 'text/html');
+
+    if (resourceType === 'css') {
+      const fileName = getFileName(resourcePath);
+      const existing = doc.querySelector(`link[href="${resourcePath}"]`) || doc.querySelector(`link[href*="${fileName}"]`);
+      if (!existing) {
+        const linkEl = doc.createElement('link');
+        linkEl.setAttribute('rel', 'stylesheet');
+        linkEl.setAttribute('href', resourcePath);
+        if (doc.head) {
+          doc.head.appendChild(linkEl);
+        } else if (doc.documentElement) {
+          doc.documentElement.insertBefore(linkEl, doc.body || null);
+        }
+      }
+    } else if (resourceType === 'js') {
+      const fileName = getFileName(resourcePath);
+      const existing = doc.querySelector(`script[src="${resourcePath}"]`) || doc.querySelector(`script[src*="${fileName}"]`);
+      if (!existing) {
+        const scriptEl = doc.createElement('script');
+        scriptEl.setAttribute('src', resourcePath);
+        if (doc.body) {
+          doc.body.appendChild(scriptEl);
+        } else if (doc.documentElement) {
+          doc.documentElement.appendChild(scriptEl);
+        }
+      }
+    }
+
+    const updatedHtml = cleanDocumentHtml(doc);
+    getStore().updateFile(activeHtmlPath, updatedHtml);
   },
 
   setViewportMode: (mode: ViewportMode) => {

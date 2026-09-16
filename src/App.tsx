@@ -33,6 +33,10 @@ export default function App() {
     duplicateSelectedElement,
     deleteSelectedElement,
     jumpToSelectedElementInCode,
+    jumpToCssRuleInCode,
+    jumpToJsReferenceInCode,
+    saveStylesToCssFile,
+    injectResourceLinkToActiveHtml,
     consoleLogs,
     clearConsoleLogs,
     isBottomPanelOpen,
@@ -219,6 +223,10 @@ export default function App() {
             onDuplicateElement={duplicateSelectedElement}
             onDeleteElement={deleteSelectedElement}
             onJumpToCode={jumpToSelectedElementInCode}
+            onJumpToCss={jumpToCssRuleInCode}
+            onJumpToJs={jumpToJsReferenceInCode}
+            onSaveStylesToCss={saveStylesToCssFile}
+            onInjectResource={injectResourceLinkToActiveHtml}
             onClose={() => setSelectedElement(null)}
           />
         )}
