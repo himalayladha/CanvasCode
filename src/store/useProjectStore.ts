@@ -663,22 +663,29 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
   },
 
   setCanvasMode: (mode: CanvasMode) => {
-    setStore({ canvasMode: mode, isInspectMode: mode === 'design' });
+    const isDesign = mode === 'design';
+    setStore({
+      canvasMode: mode,
+      isInspectMode: isDesign,
+      isInspectorPanelOpen: isDesign,
+      selectedElement: isDesign ? getStore().selectedElement : null,
+      hoveredElementInfo: null,
+    });
   },
 
   toggleCanvasMode: () => {
     const current = getStore().canvasMode;
     const next = current === 'design' ? 'interact' : 'design';
-    setStore({ canvasMode: next, isInspectMode: next === 'design' });
+    getStore().setCanvasMode(next);
   },
 
   setIsInspectMode: (enabled: boolean) => {
-    setStore({ isInspectMode: enabled, canvasMode: enabled ? 'design' : 'interact' });
+    getStore().setCanvasMode(enabled ? 'design' : 'interact');
   },
 
   toggleInspectMode: () => {
     const next = !getStore().isInspectMode;
-    setStore({ isInspectMode: next, canvasMode: next ? 'design' : 'interact' });
+    getStore().setCanvasMode(next ? 'design' : 'interact');
   },
 
   setIsInspectorPanelOpen: (isOpen: boolean) => {

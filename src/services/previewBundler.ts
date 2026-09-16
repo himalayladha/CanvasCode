@@ -1,6 +1,6 @@
 import { VirtualFile } from '../types/vfs';
 import { resolveRelativePath, getFileExtension } from '../utils/pathUtils';
-import { IFRAME_BRIDGE_SCRIPT } from './iframeBridgeScript';
+import { getIframeBridgeScript } from './iframeBridgeScript';
 
 /**
  * Resolves and inlines or rewrites CSS urls to point to virtual file blobs
@@ -27,7 +27,7 @@ export function resolveCssUrls(cssContent: string, cssFilePath: string, files: R
 export function bundleProjectForPreview(
   files: Record<string, VirtualFile>,
   activeHtmlPath: string = 'index.html',
-  _isInspectMode: boolean = false
+  isInspectMode: boolean = true
 ): string {
   const htmlFile = files[activeHtmlPath];
   if (!htmlFile) {
@@ -142,14 +142,15 @@ export function bundleProjectForPreview(
   });
 
   // 5. Serialize HTML and inject Bridge Script
+  const bridgeScript = getIframeBridgeScript(isInspectMode);
   let htmlResult = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
 
   if (htmlResult.includes('</body>')) {
-    htmlResult = htmlResult.replace('</body>', `${IFRAME_BRIDGE_SCRIPT}\n</body>`);
+    htmlResult = htmlResult.replace('</body>', `${bridgeScript}\n</body>`);
   } else if (htmlResult.includes('</html>')) {
-    htmlResult = htmlResult.replace('</html>', `${IFRAME_BRIDGE_SCRIPT}\n</html>`);
+    htmlResult = htmlResult.replace('</html>', `${bridgeScript}\n</html>`);
   } else {
-    htmlResult += `\n${IFRAME_BRIDGE_SCRIPT}`;
+    htmlResult += `\n${bridgeScript}`;
   }
 
   return htmlResult;

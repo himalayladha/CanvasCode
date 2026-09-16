@@ -220,4 +220,69 @@ describe('useProjectStore VFS', () => {
     state = useProjectStore.getState();
     expect(state.files['index.html'].content).toBeDefined();
   });
+
+  it('switches between design mode and interact mode correctly', () => {
+    const { setCanvasMode, toggleCanvasMode, setSelectedElement } = useProjectStore.getState();
+
+    // Start in design mode
+    expect(useProjectStore.getState().canvasMode).toBe('design');
+    expect(useProjectStore.getState().isInspectMode).toBe(true);
+
+    // Mock selecting an element
+    setSelectedElement({
+      tagName: 'button',
+      id: 'explore-btn',
+      classList: ['btn'],
+      selector: '#explore-btn',
+      innerText: 'Demo',
+      attributes: {},
+      computedStyles: {
+        color: '',
+        backgroundColor: '',
+        fontSize: '',
+        fontWeight: '',
+        textAlign: '',
+        margin: '',
+        padding: '',
+        border: '',
+        borderRadius: '',
+        width: '100px',
+        height: '30px',
+        display: 'block',
+      },
+      boxModel: {
+        marginTop: '0px',
+        marginRight: '0px',
+        marginBottom: '0px',
+        marginLeft: '0px',
+        paddingTop: '0px',
+        paddingRight: '0px',
+        paddingBottom: '0px',
+        paddingLeft: '0px',
+      },
+      rect: { top: 0, left: 0, width: 100, height: 30 },
+    });
+    expect(useProjectStore.getState().selectedElement).not.toBeNull();
+
+    // Switch to interact mode
+    setCanvasMode('interact');
+    let state = useProjectStore.getState();
+    expect(state.canvasMode).toBe('interact');
+    expect(state.isInspectMode).toBe(false);
+    expect(state.selectedElement).toBeNull();
+    expect(state.isInspectorPanelOpen).toBe(false);
+
+    // Switch back to design mode
+    setCanvasMode('design');
+    state = useProjectStore.getState();
+    expect(state.canvasMode).toBe('design');
+    expect(state.isInspectMode).toBe(true);
+    expect(state.isInspectorPanelOpen).toBe(true);
+
+    // Test toggleCanvasMode
+    toggleCanvasMode();
+    expect(useProjectStore.getState().canvasMode).toBe('interact');
+    toggleCanvasMode();
+    expect(useProjectStore.getState().canvasMode).toBe('design');
+  });
 });

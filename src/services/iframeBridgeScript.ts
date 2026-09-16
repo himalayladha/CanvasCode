@@ -4,7 +4,8 @@
  * and on-canvas WYSIWYG double-click text editing.
  */
 
-export const IFRAME_BRIDGE_SCRIPT = `
+export function getIframeBridgeScript(initialInspectMode: boolean = true): string {
+  return `
 <script id="__WEBSTUDIO_BRIDGE__">
 (function() {
   if (window.__WEBSTUDIO_BRIDGE_INITIALIZED__) return;
@@ -85,8 +86,20 @@ export const IFRAME_BRIDGE_SCRIPT = `
     }, '*');
   });
 
-  // 2. Link Navigation Interception
+  // 2. Visual Element Inspector Overlay & State
+  var isInspectMode = ${initialInspectMode ? 'true' : 'false'};
+  var hoverOverlay = null;
+
+  function setMode(mode) {
+    isInspectMode = !!mode;
+    if (!isInspectMode && hoverOverlay) {
+      hoverOverlay.style.display = 'none';
+    }
+  }
+
+  // 3. Link Navigation Interception (Interact Mode)
   document.addEventListener('click', function(e) {
+    if (isInspectMode) return;
     var target = e.target;
     while (target && target.tagName !== 'A') {
       target = target.parentElement;
@@ -106,19 +119,15 @@ export const IFRAME_BRIDGE_SCRIPT = `
     }
   }, true);
 
-  // 3. Visual Element Inspector Overlay & On-Canvas Editing
-  var isInspectMode = false;
-  var hoverOverlay = null;
-
   function createHoverOverlay() {
     if (hoverOverlay) return hoverOverlay;
     hoverOverlay = document.createElement('div');
     hoverOverlay.id = '__webstudio_inspect_overlay__';
-    hoverOverlay.style.cssText = 'position: fixed; pointer-events: none; z-index: 2147483647; border: 2px dashed #3b82f6; background-color: rgba(59, 130, 246, 0.15); transition: all 0.05s ease-out; display: none;';
+    hoverOverlay.style.cssText = 'position: fixed; pointer-events: none; z-index: 2147483647; border: 2px dashed #007acc; background-color: rgba(0, 122, 204, 0.12); transition: all 0.05s ease-out; display: none;';
     
     var badge = document.createElement('div');
     badge.id = '__webstudio_inspect_badge__';
-    badge.style.cssText = 'position: absolute; top: -24px; left: 0; background: #3b82f6; color: #ffffff; font-family: monospace; font-size: 11px; padding: 2px 6px; border-radius: 3px; white-space: nowrap; pointer-events: none; font-weight: bold;';
+    badge.style.cssText = 'position: absolute; top: -24px; left: 0; background: #007acc; color: #ffffff; font-family: monospace; font-size: 11px; padding: 2px 6px; border-radius: 3px; white-space: nowrap; pointer-events: none; font-weight: bold; box-shadow: 0 2px 6px rgba(0,0,0,0.3);';
     hoverOverlay.appendChild(badge);
 
     document.body.appendChild(hoverOverlay);
@@ -191,7 +200,12 @@ export const IFRAME_BRIDGE_SCRIPT = `
         borderRadius: style.borderRadius || '',
         width: Math.round(rect.width) + 'px',
         height: Math.round(rect.height) + 'px',
-        display: style.display || ''
+        display: style.display || '',
+        flexDirection: style.flexDirection || 'row',
+        alignItems: style.alignItems || 'stretch',
+        justifyContent: style.justifyContent || 'flex-start',
+        gap: style.gap || '0px',
+        opacity: style.opacity || '1'
       },
       boxModel: {
         marginTop: style.marginTop || '0px',
@@ -213,9 +227,12 @@ export const IFRAME_BRIDGE_SCRIPT = `
   }
 
   function handleMouseMove(e) {
-    if (!isInspectMode) return;
+    if (!isInspectMode) {
+      if (hoverOverlay) hoverOverlay.style.display = 'none';
+      return;
+    }
     var target = e.target;
-    if (!target || target === document.body || target === document.documentElement || target.id?.startsWith('__webstudio')) {
+    if (!target || target === document.body || target === document.documentElement || target.id?.startsWith('__webstudio') || (target.closest && target.closest('#__webstudio_inspect_overlay__'))) {
       if (hoverOverlay) hoverOverlay.style.display = 'none';
       return;
     }
@@ -238,7 +255,7 @@ export const IFRAME_BRIDGE_SCRIPT = `
   function handleClick(e) {
     if (!isInspectMode) return;
     var target = e.target;
-    if (!target || target === document.body || target === document.documentElement || target.id?.startsWith('__webstudio')) {
+    if (!target || target === document.body || target === document.documentElement || target.id?.startsWith('__webstudio') || (target.closest && target.closest('#__webstudio_inspect_overlay__'))) {
       return;
     }
 
@@ -252,14 +269,15 @@ export const IFRAME_BRIDGE_SCRIPT = `
     }, '*');
   }
 
-  // On-canvas Double-Click WYSIWYG text editing
+  // On-canvas Double-Click WYSIWYG text editing (Design Mode only)
   document.addEventListener('dblclick', function(e) {
+    if (!isInspectMode) return;
     var target = e.target;
-    if (!target || target === document.body || target === document.documentElement || target.id?.startsWith('__webstudio')) {
+    if (!target || target === document.body || target === document.documentElement || target.id?.startsWith('__webstudio') || (target.closest && target.closest('#__webstudio_inspect_overlay__'))) {
       return;
     }
 
-    if (target.children.length === 0 || ['H1','H2','H3','H4','H5','H6','P','SPAN','BUTTON','A','LI'].indexOf(target.tagName) !== -1) {
+    if (target.children.length === 0 || ['H1','H2','H3','H4','H5','H6','P','SPAN','BUTTON','A','LI','BLOCKQUOTE'].indexOf(target.tagName) !== -1) {
       target.contentEditable = 'true';
       target.focus();
       if (hoverOverlay) hoverOverlay.style.display = 'none';
@@ -280,20 +298,28 @@ export const IFRAME_BRIDGE_SCRIPT = `
     }
   }, true);
 
+  document.addEventListener('mouseleave', function() {
+    if (hoverOverlay) hoverOverlay.style.display = 'none';
+  });
+
   window.addEventListener('message', function(event) {
     var data = event.data;
     if (!data || typeof data !== 'object') return;
 
     if (data.type === 'SET_INSPECT_MODE') {
-      isInspectMode = !!data.payload;
-      if (!isInspectMode && hoverOverlay) {
-        hoverOverlay.style.display = 'none';
-      }
+      setMode(data.payload);
     }
   });
 
   document.addEventListener('mousemove', handleMouseMove, true);
   document.addEventListener('click', handleClick, true);
+
+  // Notify parent that iframe bridge is ready
+  window.parent.postMessage({ type: 'WEBSTUDIO_IFRAME_READY' }, '*');
 })();
 </script>
 `;
+}
+
+export const IFRAME_BRIDGE_SCRIPT = getIframeBridgeScript(true);
+

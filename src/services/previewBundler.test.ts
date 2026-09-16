@@ -84,4 +84,24 @@ describe('previewBundler', () => {
 
     expect(bundled).toContain('No HTML file selected');
   });
+
+  it('embeds correct isInspectMode state inside the bundled bridge script', () => {
+    const files: Record<string, VirtualFile> = {
+      'index.html': {
+        id: '1',
+        path: 'index.html',
+        name: 'index.html',
+        type: 'file',
+        content: '<h1>Hello</h1>',
+        isBinary: false,
+        updatedAt: 1,
+      },
+    };
+
+    const bundledDesign = bundleProjectForPreview(files, 'index.html', true);
+    expect(bundledDesign).toContain('var isInspectMode = true;');
+
+    const bundledInteract = bundleProjectForPreview(files, 'index.html', false);
+    expect(bundledInteract).toContain('var isInspectMode = false;');
+  });
 });

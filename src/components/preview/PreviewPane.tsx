@@ -52,14 +52,13 @@ export const PreviewPane: React.FC = () => {
     return () => clearTimeout(timer);
   }, [files, previewCurrentPath, previewKey, isInspectMode]);
 
-  // Sync inspect mode to iframe
-  useEffect(() => {
+  const sendInspectModeToIframe = (mode: boolean) => {
     if (iframeRef.current?.contentWindow) {
       try {
         iframeRef.current.contentWindow.postMessage(
           {
             type: 'SET_INSPECT_MODE',
-            payload: isInspectMode,
+            payload: mode,
           },
           '*'
         );
@@ -67,6 +66,11 @@ export const PreviewPane: React.FC = () => {
         console.warn('Failed to dispatch inspect mode to iframe:', e);
       }
     }
+  };
+
+  // Sync inspect mode to iframe
+  useEffect(() => {
+    sendInspectModeToIframe(isInspectMode);
   }, [isInspectMode, debouncedHtml]);
 
   // Listen to messages from the preview iframe
@@ -76,6 +80,10 @@ export const PreviewPane: React.FC = () => {
       if (!data || typeof data !== 'object') return;
 
       switch (data.type) {
+        case 'WEBSTUDIO_IFRAME_READY':
+          sendInspectModeToIframe(isInspectMode);
+          break;
+
         case 'WEBSTUDIO_CONSOLE_LOG':
           if (data.payload) {
             addConsoleLog(data.payload);
@@ -111,7 +119,7 @@ export const PreviewPane: React.FC = () => {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [files, addConsoleLog, setPreviewCurrentPath, setActiveFile, setSelectedElement, updateSelectedElementText]);
+  }, [files, isInspectMode, addConsoleLog, setPreviewCurrentPath, setActiveFile, setSelectedElement, updateSelectedElementText]);
 
   const getViewportDimensions = (mode: ViewportMode, landscape: boolean) => {
     switch (mode) {
@@ -282,6 +290,7 @@ export const PreviewPane: React.FC = () => {
             key={previewKey}
             title="Live Preview"
             srcDoc={debouncedHtml}
+            onLoad={() => sendInspectModeToIframe(isInspectMode)}
             sandbox="allow-scripts allow-modals allow-forms allow-same-origin"
             className="w-full h-full border-none bg-white"
           />
