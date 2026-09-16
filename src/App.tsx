@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { UploadCloud } from 'lucide-react';
+import { UploadCloud, Files, Layers } from 'lucide-react';
 import { useProjectStore } from './store/useProjectStore';
 import { TopToolbar } from './components/toolbar/TopToolbar';
 import { FileTree } from './components/filetree/FileTree';
+import { DomOutlineTree } from './components/domtree/DomOutlineTree';
 import { EditorWorkspace } from './components/editor/EditorWorkspace';
 import { PreviewPane } from './components/preview/PreviewPane';
 import { VisualInspector } from './components/inspector/VisualInspector';
@@ -45,6 +46,9 @@ export default function App() {
     restoreFromStorage,
     undo,
     redo,
+    sidebarTab,
+    setSidebarTab,
+    workspaceViewMode,
   } = useProjectStore();
 
   const [isDraggingOver, setIsDraggingOver] = useState(false);
@@ -169,7 +173,9 @@ export default function App() {
     };
   }, [isSidebarResizing]);
 
-  const showInspector = isInspectMode || selectedElement !== null;
+  const showInspector =
+    (workspaceViewMode === 'design' || workspaceViewMode === 'split') &&
+    (isInspectMode || selectedElement !== null);
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#1e1e1e] text-[#cccccc] font-sans overflow-hidden select-none relative">
@@ -178,18 +184,53 @@ export default function App() {
 
       {/* Main Workspace Layout */}
       <div className="flex-1 flex flex-row overflow-hidden relative">
-        {/* Left Sidebar: File Tree Explorer */}
-        <div style={{ width: `${sidebarWidth}px` }} className="h-full shrink-0 relative">
-          <FileTree
-            files={files}
-            activeFilePath={activeFilePath}
-            onSelectFile={setActiveFile}
-            onAddFile={addFile}
-            onDeleteFile={deleteFile}
-            onDeleteFolder={deleteFolder}
-            onRenameFile={renameFile}
-            onCreateFolder={createFolder}
-          />
+        {/* Left Sidebar: File Tree / DOM Outline */}
+        <div
+          style={{ width: `${sidebarWidth}px` }}
+          className="h-full shrink-0 relative flex flex-col bg-[#1e1e1e] border-r border-[#333333]"
+        >
+          {/* Sidebar Tab Switcher */}
+          <div className="flex items-center border-b border-[#333333] bg-[#252526] text-xs select-none">
+            <button
+              onClick={() => setSidebarTab('files')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 font-medium transition-colors ${
+                sidebarTab === 'files'
+                  ? 'bg-[#1e1e1e] text-white border-b-2 border-[#007acc]'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-[#2a2a2d]'
+              }`}
+            >
+              <Files className="w-3.5 h-3.5" />
+              <span>Files</span>
+            </button>
+            <button
+              onClick={() => setSidebarTab('dom')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 font-medium transition-colors ${
+                sidebarTab === 'dom'
+                  ? 'bg-[#1e1e1e] text-white border-b-2 border-[#007acc]'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-[#2a2a2d]'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>DOM Tree</span>
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-hidden">
+            {sidebarTab === 'files' ? (
+              <FileTree
+                files={files}
+                activeFilePath={activeFilePath}
+                onSelectFile={setActiveFile}
+                onAddFile={addFile}
+                onDeleteFile={deleteFile}
+                onDeleteFolder={deleteFolder}
+                onRenameFile={renameFile}
+                onCreateFolder={createFolder}
+              />
+            ) : (
+              <DomOutlineTree />
+            )}
+          </div>
         </div>
 
         {/* Sidebar resize handle */}
@@ -198,15 +239,25 @@ export default function App() {
           className="w-1 hover:w-1.5 cursor-col-resize bg-[#333333] hover:bg-[#007acc] transition-colors z-20 shrink-0"
         />
 
-        {/* Center / Left Pane: Monaco Code Editor Workspace */}
-        <div className="flex-1 flex flex-col h-full min-w-0">
-          <EditorWorkspace />
-        </div>
+        {/* Monaco Code Editor Workspace */}
+        {(workspaceViewMode === 'split' || workspaceViewMode === 'source') && (
+          <div className="flex-1 flex flex-col h-full min-w-0">
+            <EditorWorkspace />
+          </div>
+        )}
 
-        {/* Center / Right Pane: Live Iframe Preview */}
-        <div className="flex-1 flex flex-col h-full min-w-0 border-l border-[#333333]">
-          <PreviewPane />
-        </div>
+        {/* Live Iframe Preview */}
+        {(workspaceViewMode === 'split' ||
+          workspaceViewMode === 'design' ||
+          workspaceViewMode === 'interact') && (
+          <div
+            className={`flex-1 flex flex-col h-full min-w-0 ${
+              workspaceViewMode === 'split' ? 'border-l border-[#333333]' : ''
+            }`}
+          >
+            <PreviewPane />
+          </div>
+        )}
 
         {/* Right Pane: Visual Element Inspector */}
         {showInspector && (

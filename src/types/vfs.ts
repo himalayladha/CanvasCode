@@ -12,6 +12,16 @@ export interface VirtualFile {
 
 export type ViewportMode = 'desktop' | 'tablet' | 'mobile' | 'responsive';
 export type CanvasMode = 'design' | 'interact';
+export type WorkspaceViewMode = 'design' | 'split' | 'source' | 'interact';
+export type SidebarTab = 'files' | 'dom';
+
+export interface DomBreadcrumbNode {
+  tagName: string;
+  id: string;
+  classList: string[];
+  selector: string;
+  dataWebstudioId?: string;
+}
 
 export interface InspectedElementData {
   dataWebstudioId?: string;
@@ -19,6 +29,7 @@ export interface InspectedElementData {
   id: string;
   classList: string[];
   selector: string;
+  ancestorPath?: DomBreadcrumbNode[];
   innerText: string;
   attributes: Record<string, string>;
   computedStyles: {
@@ -93,6 +104,8 @@ export interface ProjectState {
   previewKey: number;
   jumpToCodeTarget: JumpToCodeTarget | null;
   isInspectorPanelOpen: boolean;
+  workspaceViewMode: WorkspaceViewMode;
+  sidebarTab: SidebarTab;
   history: Record<string, VirtualFile>[];
   historyIndex: number;
 }

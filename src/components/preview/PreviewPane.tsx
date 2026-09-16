@@ -13,7 +13,9 @@ import {
 } from 'lucide-react';
 import { useProjectStore } from '../../store/useProjectStore';
 import { bundleProjectForPreview } from '../../services/previewBundler';
-import { ViewportMode } from '../../types/vfs';
+import { ViewportMode, DomBreadcrumbNode } from '../../types/vfs';
+import { WysiwygToolbar } from '../wysiwyg/WysiwygToolbar';
+import { DomBreadcrumbBar } from './DomBreadcrumbBar';
 
 export const PreviewPane: React.FC = () => {
   const {
@@ -64,6 +66,41 @@ export const PreviewPane: React.FC = () => {
         );
       } catch (e) {
         console.warn('Failed to dispatch inspect mode to iframe:', e);
+      }
+    }
+  };
+
+  const sendFormatCommandToIframe = (command: string, value?: string) => {
+    if (iframeRef.current?.contentWindow) {
+      try {
+        iframeRef.current.contentWindow.postMessage(
+          {
+            type: 'WEBSTUDIO_FORMAT_TEXT',
+            payload: { command, value },
+          },
+          '*'
+        );
+      } catch (e) {
+        console.warn('Failed to dispatch format command to iframe:', e);
+      }
+    }
+  };
+
+  const sendSelectElementToIframe = (node: DomBreadcrumbNode) => {
+    if (iframeRef.current?.contentWindow) {
+      try {
+        iframeRef.current.contentWindow.postMessage(
+          {
+            type: 'SELECT_ELEMENT',
+            payload: {
+              dataWebstudioId: node.dataWebstudioId,
+              selector: node.selector,
+            },
+          },
+          '*'
+        );
+      } catch (e) {
+        console.warn('Failed to dispatch select element to iframe:', e);
       }
     }
   };
@@ -278,6 +315,9 @@ export const PreviewPane: React.FC = () => {
         </div>
       </div>
 
+      {/* WYSIWYG Ribbon Toolbar (Active in Inspect/Design mode) */}
+      <WysiwygToolbar onFormatCommand={sendFormatCommandToIframe} isInspectMode={isInspectMode} />
+
       {/* Viewport Frame Container */}
       <div className="flex-1 bg-[#121212] overflow-auto flex items-center justify-center p-2 relative">
         <div
@@ -305,6 +345,9 @@ export const PreviewPane: React.FC = () => {
           />
         </div>
       </div>
+
+      {/* HTML DOM Breadcrumb Hierarchy Bar */}
+      <DomBreadcrumbBar onSelectNode={sendSelectElementToIframe} />
     </div>
   );
 };

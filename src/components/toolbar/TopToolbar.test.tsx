@@ -43,4 +43,37 @@ describe('TopToolbar component', () => {
     fireEvent.click(redoBtn);
     expect(useProjectStore.getState().files['index.html'].content).toContain('New Changed Title');
   });
+
+  it('renders 4-way workspace mode buttons and switches workspace mode', () => {
+    render(<TopToolbar />);
+
+    const designBtn = screen.getByRole('button', { name: /Design/i });
+    const splitBtn = screen.getByRole('button', { name: /Split/i });
+    const sourceBtn = screen.getByRole('button', { name: /Source/i });
+    const interactBtn = screen.getByRole('button', { name: /Interact/i });
+
+    expect(designBtn).toBeInTheDocument();
+    expect(splitBtn).toBeInTheDocument();
+    expect(sourceBtn).toBeInTheDocument();
+    expect(interactBtn).toBeInTheDocument();
+
+    fireEvent.click(designBtn);
+    expect(useProjectStore.getState().workspaceViewMode).toBe('design');
+
+    fireEvent.click(sourceBtn);
+    expect(useProjectStore.getState().workspaceViewMode).toBe('source');
+
+    fireEvent.click(interactBtn);
+    expect(useProjectStore.getState().workspaceViewMode).toBe('interact');
+  });
+
+  it('opens insert palette modal when Insert button is clicked', () => {
+    render(<TopToolbar />);
+
+    const insertBtn = screen.getByRole('button', { name: /Insert/i });
+    expect(insertBtn).toBeInTheDocument();
+
+    fireEvent.click(insertBtn);
+    expect(screen.getByText(/Insert HTML Component/i)).toBeInTheDocument();
+  });
 });

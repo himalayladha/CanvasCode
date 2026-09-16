@@ -606,4 +606,132 @@ describe('useProjectStore VFS', () => {
     expect(state.files['about.html'].content).toContain('About Our Amazing Platform');
     expect(state.files['about.html'].content).toContain('color: rgb(56, 189, 248)');
   });
+
+  it('switches workspace view mode and updates inspection state', () => {
+    const { setWorkspaceViewMode } = useProjectStore.getState();
+
+    setWorkspaceViewMode('design');
+    let state = useProjectStore.getState();
+    expect(state.workspaceViewMode).toBe('design');
+    expect(state.canvasMode).toBe('design');
+    expect(state.isInspectMode).toBe(true);
+    expect(state.isInspectorPanelOpen).toBe(true);
+
+    setWorkspaceViewMode('source');
+    state = useProjectStore.getState();
+    expect(state.workspaceViewMode).toBe('source');
+    expect(state.canvasMode).toBe('design');
+    expect(state.isInspectMode).toBe(false);
+
+    setWorkspaceViewMode('interact');
+    state = useProjectStore.getState();
+    expect(state.workspaceViewMode).toBe('interact');
+    expect(state.canvasMode).toBe('interact');
+    expect(state.isInspectMode).toBe(false);
+
+    setWorkspaceViewMode('split');
+    state = useProjectStore.getState();
+    expect(state.workspaceViewMode).toBe('split');
+    expect(state.isInspectMode).toBe(true);
+  });
+
+  it('switches sidebar tab between files and dom outline', () => {
+    const { setSidebarTab } = useProjectStore.getState();
+
+    setSidebarTab('dom');
+    expect(useProjectStore.getState().sidebarTab).toBe('dom');
+
+    setSidebarTab('files');
+    expect(useProjectStore.getState().sidebarTab).toBe('files');
+  });
+
+  it('inserts HTML snippet (table, layout, component) at selected element', () => {
+    const { setSelectedElement, insertHtmlSnippetAtSelected } = useProjectStore.getState();
+
+    setSelectedElement({
+      tagName: 'h1',
+      id: '',
+      classList: ['hero-title'],
+      selector: '.hero-title',
+      innerText: 'Build Websites Directly in Your Browser',
+      attributes: { class: 'hero-title' },
+      computedStyles: {
+        color: '',
+        backgroundColor: '',
+        fontSize: '3rem',
+        fontWeight: '800',
+        textAlign: '',
+        margin: '',
+        padding: '',
+        border: '',
+        borderRadius: '',
+        width: 'auto',
+        height: 'auto',
+        display: 'block',
+      },
+      boxModel: {
+        marginTop: '0px',
+        marginRight: '0px',
+        marginBottom: '0px',
+        marginLeft: '0px',
+        paddingTop: '0px',
+        paddingRight: '0px',
+        paddingBottom: '0px',
+        paddingLeft: '0px',
+      },
+      rect: { top: 0, left: 0, width: 400, height: 40 },
+    });
+
+    const tableSnippet = '<table class="data-table"><thead><tr><th>Header 1</th></tr></thead><tbody><tr><td>Cell 1</td></tr></tbody></table>';
+    insertHtmlSnippetAtSelected(tableSnippet, 'after');
+
+    const state = useProjectStore.getState();
+    expect(state.files['index.html'].content).toContain('<table class="data-table">');
+    expect(state.files['index.html'].content).toContain('<th>Header 1</th>');
+    expect(state.files['index.html'].content).toContain('<td>Cell 1</td>');
+  });
+
+  it('wraps selected element with container tag', () => {
+    const { setSelectedElement, wrapSelectedElement } = useProjectStore.getState();
+
+    setSelectedElement({
+      tagName: 'h1',
+      id: '',
+      classList: ['hero-title'],
+      selector: '.hero-title',
+      innerText: 'Build Websites Directly in Your Browser',
+      attributes: { class: 'hero-title' },
+      computedStyles: {
+        color: '',
+        backgroundColor: '',
+        fontSize: '3rem',
+        fontWeight: '800',
+        textAlign: '',
+        margin: '',
+        padding: '',
+        border: '',
+        borderRadius: '',
+        width: 'auto',
+        height: 'auto',
+        display: 'block',
+      },
+      boxModel: {
+        marginTop: '0px',
+        marginRight: '0px',
+        marginBottom: '0px',
+        marginLeft: '0px',
+        paddingTop: '0px',
+        paddingRight: '0px',
+        paddingBottom: '0px',
+        paddingLeft: '0px',
+      },
+      rect: { top: 0, left: 0, width: 400, height: 40 },
+    });
+
+    wrapSelectedElement('section');
+
+    const state = useProjectStore.getState();
+    expect(state.files['index.html'].content).toContain('<section><h1 class="hero-title"');
+    expect(state.files['index.html'].content).toContain('</h1></section>');
+  });
 });

@@ -181,12 +181,32 @@ export function getIframeBridgeScript(initialInspectMode: boolean = true): strin
       }
     }
 
+    var ancestorPath = [];
+    var curr = el;
+    while (curr && curr !== document.documentElement && curr.nodeType === Node.ELEMENT_NODE) {
+      var currClasses = [];
+      if (curr.className && typeof curr.className === 'string') {
+        currClasses = curr.className.trim().split(/\\s+/).filter(function(c) {
+          return c && !c.startsWith('__webstudio');
+        });
+      }
+      ancestorPath.unshift({
+        tagName: curr.tagName.toLowerCase(),
+        id: curr.id || '',
+        classList: currClasses,
+        selector: getUniqueSelector(curr),
+        dataWebstudioId: curr.getAttribute('data-webstudio-id') || undefined
+      });
+      curr = curr.parentElement;
+    }
+
     return {
       dataWebstudioId: el.getAttribute('data-webstudio-id') || undefined,
       tagName: el.tagName.toLowerCase(),
       id: el.id || '',
       classList: classList,
       selector: getUniqueSelector(el),
+      ancestorPath: ancestorPath,
       innerText: el.children.length === 0 ? el.textContent || '' : '',
       attributes: attributes,
       computedStyles: {
@@ -312,6 +332,47 @@ export function getIframeBridgeScript(initialInspectMode: boolean = true): strin
 
     if (data.type === 'SET_INSPECT_MODE') {
       setMode(data.payload);
+    }
+
+    if (data.type === 'WEBSTUDIO_FORMAT_TEXT') {
+      var payload = data.payload || {};
+      var command = payload.command;
+      var value = payload.value || null;
+      if (command) {
+        document.execCommand(command, false, value);
+        var activeEl = document.activeElement || document.body;
+        window.parent.postMessage({
+          type: 'WEBSTUDIO_CANVAS_TEXT_EDITED',
+          payload: {
+            selector: getUniqueSelector(activeEl),
+            dataWebstudioId: activeEl.getAttribute('data-webstudio-id') || undefined,
+            text: activeEl.textContent || '',
+            id: activeEl.id || '',
+            tagName: activeEl.tagName.toLowerCase()
+          }
+        }, '*');
+      }
+    }
+
+    if (data.type === 'SELECT_ELEMENT') {
+      var targetSelector = data.payload && data.payload.selector;
+      var targetWebstudioId = data.payload && data.payload.dataWebstudioId;
+      var targetNode = null;
+      if (targetWebstudioId !== undefined) {
+        targetNode = document.querySelector('[data-webstudio-id="' + targetWebstudioId + '"]');
+      }
+      if (!targetNode && targetSelector) {
+        try {
+          targetNode = document.querySelector(targetSelector);
+        } catch(e) {}
+      }
+      if (targetNode) {
+        var elementData = extractElementData(targetNode);
+        window.parent.postMessage({
+          type: 'WEBSTUDIO_ELEMENT_SELECTED',
+          payload: elementData
+        }, '*');
+      }
     }
   });
 

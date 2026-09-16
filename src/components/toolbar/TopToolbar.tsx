@@ -12,10 +12,16 @@ import {
   Check,
   Undo2,
   Redo2,
+  Palette,
+  Columns,
+  Code2,
+  Play,
+  Plus,
 } from 'lucide-react';
 import { useProjectStore } from '../../store/useProjectStore';
 import { exportProjectToZip, importProjectFromZip, importProjectFromFolder } from '../../services/zipService';
 import { TemplateModal } from './TemplateModal';
+import { InsertPaletteModal } from '../wysiwyg/InsertPaletteModal';
 import { ProjectTemplate } from '../../data/starterTemplates';
 import { VirtualFile } from '../../types/vfs';
 
@@ -33,12 +39,15 @@ export const TopToolbar: React.FC = () => {
     redo,
     historyIndex,
     history,
+    workspaceViewMode,
+    setWorkspaceViewMode,
   } = useProjectStore();
 
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
 
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [isInsertModalOpen, setIsInsertModalOpen] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(projectName);
   const zipInputRef = useRef<HTMLInputElement>(null);
@@ -159,6 +168,74 @@ export const TopToolbar: React.FC = () => {
         )}
       </div>
 
+      {/* Center: 4-Way Workspace Mode Switcher & Insert Palette */}
+      <div className="flex items-center gap-2">
+        {/* Workspace Mode Switcher */}
+        <div className="flex items-center bg-[#1e1e1e] p-0.5 rounded-md border border-[#333333]">
+          <button
+            onClick={() => setWorkspaceViewMode('design')}
+            title="Visual Design Mode (Full Canvas + WYSIWYG & Inspector)"
+            className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+              workspaceViewMode === 'design'
+                ? 'bg-[#007acc] text-white shadow-sm font-semibold'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-[#2d2d30]'
+            }`}
+          >
+            <Palette className="w-3.5 h-3.5" />
+            <span>Design</span>
+          </button>
+
+          <button
+            onClick={() => setWorkspaceViewMode('split')}
+            title="Split Mode (Code Editor & Visual Canvas side-by-side)"
+            className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+              workspaceViewMode === 'split'
+                ? 'bg-[#007acc] text-white shadow-sm font-semibold'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-[#2d2d30]'
+            }`}
+          >
+            <Columns className="w-3.5 h-3.5" />
+            <span>Split</span>
+          </button>
+
+          <button
+            onClick={() => setWorkspaceViewMode('source')}
+            title="Source Code Mode (Full-width Monaco Editor)"
+            className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+              workspaceViewMode === 'source'
+                ? 'bg-[#007acc] text-white shadow-sm font-semibold'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-[#2d2d30]'
+            }`}
+          >
+            <Code2 className="w-3.5 h-3.5" />
+            <span>Source</span>
+          </button>
+
+          <button
+            onClick={() => setWorkspaceViewMode('interact')}
+            title="Interact Mode (Live browser preview with active navigation & scripts)"
+            className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+              workspaceViewMode === 'interact'
+                ? 'bg-emerald-600 text-white shadow-sm font-semibold'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-[#2d2d30]'
+            }`}
+          >
+            <Play className="w-3.5 h-3.5" />
+            <span>Interact</span>
+          </button>
+        </div>
+
+        {/* Insert Component / Table / Block Button */}
+        <button
+          onClick={() => setIsInsertModalOpen(true)}
+          title="Insert HTML components, tables, forms, layout blocks"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#1e1e1e] border border-[#3f3f46] hover:bg-[#2d2d30] text-purple-300 hover:text-white font-medium transition-colors shadow-sm"
+        >
+          <Plus className="w-3.5 h-3.5 text-purple-400" />
+          <span>Insert</span>
+        </button>
+      </div>
+
       {/* Actions Toolbar */}
       <div className="flex items-center gap-1.5">
         {/* Templates */}
@@ -269,6 +346,11 @@ export const TopToolbar: React.FC = () => {
         isOpen={isTemplateModalOpen}
         onClose={() => setIsTemplateModalOpen(false)}
         onSelectTemplate={handleSelectTemplate}
+      />
+
+      <InsertPaletteModal
+        isOpen={isInsertModalOpen}
+        onClose={() => setIsInsertModalOpen(false)}
       />
     </header>
   );

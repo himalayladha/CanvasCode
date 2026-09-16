@@ -1,6 +1,15 @@
 import { create } from 'zustand';
 import { get, set } from 'idb-keyval';
-import { ProjectState, VirtualFile, InspectedElementData, ConsoleLogMessage, ViewportMode, CanvasMode } from '../types/vfs';
+import {
+  ProjectState,
+  VirtualFile,
+  InspectedElementData,
+  ConsoleLogMessage,
+  ViewportMode,
+  CanvasMode,
+  WorkspaceViewMode,
+  SidebarTab,
+} from '../types/vfs';
 import { normalizePath, getFileName, isImageFile } from '../utils/pathUtils';
 
 const IDB_PROJECT_KEY = 'html_studio_active_project';
@@ -428,6 +437,12 @@ export interface ProjectStoreActions {
   ) => void;
   injectResourceLinkToActiveHtml: (resourceType: 'css' | 'js', resourcePath: string) => void;
 
+  // KompoZer Authoring: Views, Inserter, & Wrapping
+  setWorkspaceViewMode: (mode: WorkspaceViewMode) => void;
+  setSidebarTab: (tab: SidebarTab) => void;
+  insertHtmlSnippetAtSelected: (snippet: string, position?: 'inside' | 'after' | 'before') => void;
+  wrapSelectedElement: (wrapperTag: string) => void;
+
   // Preview & console
   setViewportMode: (mode: ViewportMode) => void;
   reloadPreview: () => void;
@@ -574,6 +589,8 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
   previewKey: 0,
   jumpToCodeTarget: null,
   isInspectorPanelOpen: true,
+  workspaceViewMode: 'split',
+  sidebarTab: 'files',
 
   undo: () => {
     const state = getStore();
@@ -1431,6 +1448,92 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
 
     const updatedHtml = cleanDocumentHtml(doc);
     getStore().updateFile(activeHtmlPath, updatedHtml);
+  },
+
+  setWorkspaceViewMode: (mode: WorkspaceViewMode) => {
+    const isDesign = mode === 'design';
+    const isSplit = mode === 'split';
+    const isInteract = mode === 'interact';
+
+    setStore({
+      workspaceViewMode: mode,
+      canvasMode: isInteract ? 'interact' : 'design',
+      isInspectMode: !isInteract && mode !== 'source',
+      isInspectorPanelOpen: isDesign || isSplit,
+    });
+  },
+
+  setSidebarTab: (tab: SidebarTab) => {
+    setStore({ sidebarTab: tab });
+  },
+
+  insertHtmlSnippetAtSelected: (snippet: string, position: 'inside' | 'after' | 'before' = 'after') => {
+    const cleanSnippet = snippet.trim();
+    if (!cleanSnippet) return;
+
+    const activeHtmlPath = getStore().previewCurrentPath;
+    const htmlFile = getStore().files[activeHtmlPath];
+    if (!htmlFile) return;
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlFile.content, 'text/html');
+
+    // Parse snippet nodes safely
+    const snippetDoc = parser.parseFromString(`<body>${cleanSnippet}</body>`, 'text/html');
+    const fragment = doc.createDocumentFragment();
+    while (snippetDoc.body.firstChild) {
+      fragment.appendChild(snippetDoc.body.firstChild);
+    }
+
+    const selected = getStore().selectedElement;
+    let targetEl: Element | null = null;
+    if (selected) {
+      targetEl = findTargetElement(doc, selected);
+    }
+
+    if (targetEl && targetEl.parentNode) {
+      if (position === 'inside') {
+        targetEl.appendChild(fragment);
+      } else if (position === 'before') {
+        targetEl.parentNode.insertBefore(fragment, targetEl);
+      } else {
+        targetEl.parentNode.insertBefore(fragment, targetEl.nextSibling);
+      }
+    } else if (doc.body) {
+      // Append inside body before scripts
+      const firstScript = doc.body.querySelector('script');
+      if (firstScript) {
+        doc.body.insertBefore(fragment, firstScript);
+      } else {
+        doc.body.appendChild(fragment);
+      }
+    }
+
+    const updatedHtml = cleanDocumentHtml(doc);
+    getStore().updateFile(activeHtmlPath, updatedHtml);
+  },
+
+  wrapSelectedElement: (wrapperTag: string) => {
+    const cleanTag = wrapperTag.trim().toLowerCase() || 'div';
+    const selected = getStore().selectedElement;
+    if (!selected) return;
+
+    const activeHtmlPath = getStore().previewCurrentPath;
+    const htmlFile = getStore().files[activeHtmlPath];
+    if (!htmlFile) return;
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlFile.content, 'text/html');
+    const targetEl = findTargetElement(doc, selected);
+
+    if (targetEl && targetEl.parentNode && targetEl.tagName.toLowerCase() !== 'body') {
+      const wrapper = doc.createElement(cleanTag);
+      targetEl.parentNode.insertBefore(wrapper, targetEl);
+      wrapper.appendChild(targetEl);
+
+      const updatedHtml = cleanDocumentHtml(doc);
+      getStore().updateFile(activeHtmlPath, updatedHtml);
+    }
   },
 
   setViewportMode: (mode: ViewportMode) => {
