@@ -12,12 +12,15 @@ import {
   Code2,
   Copy,
   Trash2,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import { InspectedElementData } from '../../types/vfs';
 import { ColorPickerInput } from './ColorPickerInput';
 import { BoxModelControl } from './BoxModelControl';
 import { ClassManager } from './ClassManager';
 import { AttributeEditor } from './AttributeEditor';
+import { LayoutControl } from './LayoutControl';
 
 interface VisualInspectorProps {
   selectedElement: InspectedElementData | null;
@@ -26,6 +29,9 @@ interface VisualInspectorProps {
   onUpdateAttribute?: (name: string, value: string) => void;
   onAddClass?: (className: string) => void;
   onRemoveClass?: (className: string) => void;
+  onChangeTag?: (newTag: string) => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
   onDuplicateElement?: () => void;
   onDeleteElement?: () => void;
   onJumpToCode?: () => void;
@@ -39,6 +45,9 @@ export const VisualInspector: React.FC<VisualInspectorProps> = ({
   onUpdateAttribute,
   onAddClass,
   onRemoveClass,
+  onChangeTag,
+  onMoveUp,
+  onMoveDown,
   onDuplicateElement,
   onDeleteElement,
   onJumpToCode,
@@ -93,9 +102,43 @@ export const VisualInspector: React.FC<VisualInspectorProps> = ({
         {/* Element Tag & Identity */}
         <div className="bg-[#252526] border border-[#333333] rounded p-2.5">
           <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-            <span className="bg-[#007acc] text-white font-mono px-1.5 py-0.5 rounded text-[11px] font-bold">
-              {tagName}
-            </span>
+            {onChangeTag ? (
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] text-gray-400 font-semibold">TAG:</span>
+                <select
+                  value={tagName.toLowerCase()}
+                  onChange={(e) => onChangeTag(e.target.value)}
+                  className="bg-[#007acc] hover:bg-[#0069aa] text-white font-mono font-bold px-1.5 py-0.5 rounded text-[11px] cursor-pointer outline-none uppercase"
+                  title="Change Element HTML Tag"
+                >
+                  <option value="h1">h1</option>
+                  <option value="h2">h2</option>
+                  <option value="h3">h3</option>
+                  <option value="h4">h4</option>
+                  <option value="h5">h5</option>
+                  <option value="h6">h6</option>
+                  <option value="p">p</option>
+                  <option value="span">span</option>
+                  <option value="div">div</option>
+                  <option value="section">section</option>
+                  <option value="article">article</option>
+                  <option value="header">header</option>
+                  <option value="footer">footer</option>
+                  <option value="nav">nav</option>
+                  <option value="main">main</option>
+                  <option value="button">button</option>
+                  <option value="a">a</option>
+                  <option value="ul">ul</option>
+                  <option value="li">li</option>
+                  <option value="blockquote">blockquote</option>
+                  <option value="img">img</option>
+                </select>
+              </div>
+            ) : (
+              <span className="bg-[#007acc] text-white font-mono px-1.5 py-0.5 rounded text-[11px] font-bold">
+                {tagName}
+              </span>
+            )}
             {id && (
               <span className="bg-purple-950/60 text-purple-300 font-mono px-1.5 py-0.5 rounded text-[11px] border border-purple-500/30">
                 #{id}
@@ -111,9 +154,30 @@ export const VisualInspector: React.FC<VisualInspectorProps> = ({
           </div>
 
           {/* Quick DOM Actions */}
-          <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-[#333333]">
+          <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[#333333] flex-wrap">
+            {onMoveUp && (
+              <button
+                title="Move Element Up in DOM"
+                onClick={onMoveUp}
+                className="flex items-center gap-1 px-2 py-1 bg-[#1e1e1e] hover:bg-[#2e2e2e] border border-[#3f3f46] text-gray-200 rounded text-[11px] transition-colors"
+              >
+                <ArrowUp className="w-3 h-3 text-emerald-400" />
+                <span>Up</span>
+              </button>
+            )}
+            {onMoveDown && (
+              <button
+                title="Move Element Down in DOM"
+                onClick={onMoveDown}
+                className="flex items-center gap-1 px-2 py-1 bg-[#1e1e1e] hover:bg-[#2e2e2e] border border-[#3f3f46] text-gray-200 rounded text-[11px] transition-colors"
+              >
+                <ArrowDown className="w-3 h-3 text-emerald-400" />
+                <span>Down</span>
+              </button>
+            )}
             {onDuplicateElement && (
               <button
+                title="Duplicate Element"
                 onClick={onDuplicateElement}
                 className="flex items-center gap-1 px-2 py-1 bg-[#1e1e1e] hover:bg-[#2e2e2e] border border-[#3f3f46] text-gray-200 rounded text-[11px] transition-colors"
               >
@@ -123,6 +187,7 @@ export const VisualInspector: React.FC<VisualInspectorProps> = ({
             )}
             {onDeleteElement && (
               <button
+                title="Delete Element"
                 onClick={onDeleteElement}
                 className="flex items-center gap-1 px-2 py-1 bg-red-950/40 hover:bg-red-900/60 border border-red-500/30 text-red-300 rounded text-[11px] transition-colors ml-auto"
               >
@@ -292,6 +357,17 @@ export const VisualInspector: React.FC<VisualInspectorProps> = ({
 
           <BoxModelControl boxModel={boxModel} onUpdateStyle={onUpdateStyle} />
         </div>
+
+        {/* Layout & Display (Flexbox, Grid, Opacity) */}
+        <LayoutControl
+          display={computedStyles.display}
+          flexDirection={computedStyles.flexDirection}
+          alignItems={computedStyles.alignItems}
+          justifyContent={computedStyles.justifyContent}
+          gap={computedStyles.gap}
+          opacity={computedStyles.opacity}
+          onUpdateStyle={onUpdateStyle}
+        />
       </div>
     </div>
   );

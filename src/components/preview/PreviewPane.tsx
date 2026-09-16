@@ -8,7 +8,8 @@ import {
   ExternalLink,
   ChevronDown,
   Globe,
-  Sliders,
+  MousePointer,
+  Play,
 } from 'lucide-react';
 import { useProjectStore } from '../../store/useProjectStore';
 import { bundleProjectForPreview } from '../../services/previewBundler';
@@ -20,8 +21,9 @@ export const PreviewPane: React.FC = () => {
     previewCurrentPath,
     setPreviewCurrentPath,
     setActiveFile,
+    canvasMode,
+    setCanvasMode,
     isInspectMode,
-    toggleInspectMode,
     setSelectedElement,
     updateSelectedElementText,
     addConsoleLog,
@@ -221,19 +223,33 @@ export const PreviewPane: React.FC = () => {
             </button>
           )}
 
-          {/* Inspect Mode button */}
-          <button
-            title="Inspect Element (Click elements in preview to edit styles & text)"
-            onClick={toggleInspectMode}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all ${
-              isInspectMode
-                ? 'bg-[#007acc] text-white shadow-md ring-2 ring-blue-400/30'
-                : 'bg-[#1e1e1e] border border-[#333333] text-gray-300 hover:bg-[#2a2d2e] hover:text-white'
-            }`}
-          >
-            <Sliders className="w-3.5 h-3.5" />
-            <span>Inspect Mode: {isInspectMode ? 'ON' : 'OFF'}</span>
-          </button>
+          {/* Canvas Mode Toggle: Design (Direct Click-to-Edit) vs Interact */}
+          <div className="flex items-center bg-[#1e1e1e] p-0.5 rounded border border-[#333333]">
+            <button
+              title="Design Mode: Click elements to visually inspect and edit; double-click text to live-type"
+              onClick={() => setCanvasMode('design')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all ${
+                canvasMode === 'design'
+                  ? 'bg-[#007acc] text-white shadow-sm'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <MousePointer className="w-3.5 h-3.5" />
+              <span>Design</span>
+            </button>
+            <button
+              title="Interact Mode: Test button clicks, JS alerts, and form submissions normally"
+              onClick={() => setCanvasMode('interact')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all ${
+                canvasMode === 'interact'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <Play className="w-3.5 h-3.5" />
+              <span>Interact</span>
+            </button>
+          </div>
 
           <button
             title="Open in new window"

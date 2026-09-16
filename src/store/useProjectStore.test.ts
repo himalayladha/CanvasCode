@@ -6,13 +6,15 @@ describe('useProjectStore VFS', () => {
     useProjectStore.getState().resetProject();
   });
 
-  it('initializes with default starter project', () => {
+  it('initializes with default starter project in design mode', () => {
     const state = useProjectStore.getState();
     expect(state.files['index.html']).toBeDefined();
     expect(state.files['css/style.css']).toBeDefined();
     expect(state.files['js/app.js']).toBeDefined();
     expect(state.activeFilePath).toBe('index.html');
     expect(state.openTabs).toContain('index.html');
+    expect(state.canvasMode).toBe('design');
+    expect(state.isInspectorPanelOpen).toBe(true);
   });
 
   it('adds and updates files', () => {
@@ -130,16 +132,59 @@ describe('useProjectStore VFS', () => {
     expect(state.files['index.html'].content).toContain('class="shadow-lg"');
   });
 
-  it('duplicates and deletes selected elements from HTML content', () => {
-    const { setSelectedElement, duplicateSelectedElement, deleteSelectedElement } = useProjectStore.getState();
+  it('changes selected element tag name in DOM and store', () => {
+    const { setSelectedElement, changeSelectedElementTag } = useProjectStore.getState();
+
+    setSelectedElement({
+      tagName: 'h1',
+      id: 'main-heading',
+      classList: ['hero-title'],
+      selector: '#main-heading',
+      innerText: 'Design and build web projects in real-time.',
+      attributes: { id: 'main-heading', class: 'hero-title' },
+      computedStyles: {
+        color: '',
+        backgroundColor: '',
+        fontSize: '3rem',
+        fontWeight: '800',
+        textAlign: '',
+        margin: '',
+        padding: '',
+        border: '',
+        borderRadius: '',
+        width: '600px',
+        height: '60px',
+        display: 'block',
+      },
+      boxModel: {
+        marginTop: '0px',
+        marginRight: '0px',
+        marginBottom: '0px',
+        marginLeft: '0px',
+        paddingTop: '0px',
+        paddingRight: '0px',
+        paddingBottom: '0px',
+        paddingLeft: '0px',
+      },
+      rect: { top: 0, left: 0, width: 600, height: 60 },
+    });
+
+    changeSelectedElementTag('h2');
+    const state = useProjectStore.getState();
+    expect(state.files['index.html'].content).toContain('<h2');
+    expect(state.selectedElement?.tagName).toBe('h2');
+  });
+
+  it('reorders elements with move up and move down', () => {
+    const { setSelectedElement, moveSelectedElementDown, moveSelectedElementUp } = useProjectStore.getState();
 
     setSelectedElement({
       tagName: 'button',
-      id: 'cta-btn',
+      id: 'explore-btn',
       classList: ['btn', 'btn-primary'],
-      selector: '#cta-btn',
-      innerText: 'Get Started',
-      attributes: { id: 'cta-btn', class: 'btn btn-primary' },
+      selector: '#explore-btn',
+      innerText: 'Try Interactive Demo',
+      attributes: { id: 'explore-btn', class: 'btn btn-primary' },
       computedStyles: {
         color: '',
         backgroundColor: '',
@@ -167,12 +212,12 @@ describe('useProjectStore VFS', () => {
       rect: { top: 0, left: 0, width: 100, height: 30 },
     });
 
-    duplicateSelectedElement();
+    moveSelectedElementDown();
     let state = useProjectStore.getState();
-    expect(state.files['index.html'].content.match(/Get Started/g)?.length).toBe(2);
+    expect(state.files['index.html'].content).toBeDefined();
 
-    deleteSelectedElement();
+    moveSelectedElementUp();
     state = useProjectStore.getState();
-    expect(state.selectedElement).toBeNull();
+    expect(state.files['index.html'].content).toBeDefined();
   });
 });

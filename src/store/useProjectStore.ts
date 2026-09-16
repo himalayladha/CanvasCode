@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { get, set } from 'idb-keyval';
-import { ProjectState, VirtualFile, InspectedElementData, ConsoleLogMessage, ViewportMode } from '../types/vfs';
+import { ProjectState, VirtualFile, InspectedElementData, ConsoleLogMessage, ViewportMode, CanvasMode } from '../types/vfs';
 import { normalizePath, getFileName, isImageFile } from '../utils/pathUtils';
 
 const IDB_PROJECT_KEY = 'html_studio_active_project';
@@ -390,9 +390,12 @@ export interface ProjectStoreActions {
   setPreviewCurrentPath: (path: string) => void;
   setEntryHtmlPath: (path: string) => void;
 
-  // Visual inspector
+  // Direct Visual Inspector
+  setCanvasMode: (mode: CanvasMode) => void;
+  toggleCanvasMode: () => void;
   setIsInspectMode: (enabled: boolean) => void;
   toggleInspectMode: () => void;
+  setIsInspectorPanelOpen: (isOpen: boolean) => void;
   setSelectedElement: (element: InspectedElementData | null) => void;
   setHoveredElementInfo: (info: ProjectState['hoveredElementInfo']) => void;
   updateSelectedElementStyle: (property: string, value: string) => void;
@@ -400,8 +403,11 @@ export interface ProjectStoreActions {
   updateSelectedElementAttribute: (name: string, value: string) => void;
   addClassToSelectedElement: (className: string) => void;
   removeClassFromSelectedElement: (className: string) => void;
+  changeSelectedElementTag: (newTag: string) => void;
   duplicateSelectedElement: () => void;
   deleteSelectedElement: () => void;
+  moveSelectedElementUp: () => void;
+  moveSelectedElementDown: () => void;
   jumpToSelectedElementInCode: () => void;
   clearJumpToCodeTarget: () => void;
 
@@ -428,7 +434,8 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
   openTabs: ['index.html', 'css/style.css'],
   entryHtmlPath: 'index.html',
   previewCurrentPath: 'index.html',
-  isInspectMode: false,
+  canvasMode: 'design',
+  isInspectMode: true,
   selectedElement: null,
   hoveredElementInfo: null,
   consoleLogs: [],
@@ -437,6 +444,7 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
   bottomPanelTab: 'console',
   previewKey: 0,
   jumpToCodeTarget: null,
+  isInspectorPanelOpen: true,
 
   addFile: (path: string, content = '', isBinary = false, blob?: Blob) => {
     const normalized = normalizePath(path);
@@ -654,17 +662,31 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
     setStore({ entryHtmlPath: normalized, previewCurrentPath: normalized });
   },
 
+  setCanvasMode: (mode: CanvasMode) => {
+    setStore({ canvasMode: mode, isInspectMode: mode === 'design' });
+  },
+
+  toggleCanvasMode: () => {
+    const current = getStore().canvasMode;
+    const next = current === 'design' ? 'interact' : 'design';
+    setStore({ canvasMode: next, isInspectMode: next === 'design' });
+  },
+
   setIsInspectMode: (enabled: boolean) => {
-    setStore({ isInspectMode: enabled, selectedElement: enabled ? getStore().selectedElement : null });
+    setStore({ isInspectMode: enabled, canvasMode: enabled ? 'design' : 'interact' });
   },
 
   toggleInspectMode: () => {
     const next = !getStore().isInspectMode;
-    setStore({ isInspectMode: next, selectedElement: next ? getStore().selectedElement : null });
+    setStore({ isInspectMode: next, canvasMode: next ? 'design' : 'interact' });
+  },
+
+  setIsInspectorPanelOpen: (isOpen: boolean) => {
+    setStore({ isInspectorPanelOpen: isOpen });
   },
 
   setSelectedElement: (element: InspectedElementData | null) => {
-    setStore({ selectedElement: element });
+    setStore({ selectedElement: element, isInspectorPanelOpen: element !== null ? true : getStore().isInspectorPanelOpen });
   },
 
   setHoveredElementInfo: (info) => {
@@ -831,6 +853,51 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
     }));
   },
 
+  changeSelectedElementTag: (newTag: string) => {
+    const cleanTag = newTag.trim().toLowerCase();
+    const selected = getStore().selectedElement;
+    if (!selected || !cleanTag || cleanTag === selected.tagName) return;
+
+    const activeHtmlPath = getStore().previewCurrentPath;
+    const htmlFile = getStore().files[activeHtmlPath];
+    if (!htmlFile) return;
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlFile.content, 'text/html');
+
+    let targetEl: Element | null = null;
+    try {
+      targetEl = doc.querySelector(selected.selector);
+    } catch {
+      if (selected.id) targetEl = doc.getElementById(selected.id);
+    }
+
+    if (targetEl && targetEl.parentNode) {
+      const newEl = doc.createElement(cleanTag);
+      // Copy attributes
+      Array.from(targetEl.attributes).forEach((attr) => {
+        newEl.setAttribute(attr.name, attr.value);
+      });
+      // Copy children
+      while (targetEl.firstChild) {
+        newEl.appendChild(targetEl.firstChild);
+      }
+
+      targetEl.parentNode.replaceChild(newEl, targetEl);
+      const updatedHtml = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+      getStore().updateFile(activeHtmlPath, updatedHtml);
+
+      setStore((state) => ({
+        selectedElement: state.selectedElement
+          ? {
+              ...state.selectedElement,
+              tagName: cleanTag,
+            }
+          : null,
+      }));
+    }
+  },
+
   duplicateSelectedElement: () => {
     const selected = getStore().selectedElement;
     if (!selected) return;
@@ -883,6 +950,56 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
       const updatedHtml = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
       getStore().updateFile(activeHtmlPath, updatedHtml);
       setStore({ selectedElement: null });
+    }
+  },
+
+  moveSelectedElementUp: () => {
+    const selected = getStore().selectedElement;
+    if (!selected) return;
+
+    const activeHtmlPath = getStore().previewCurrentPath;
+    const htmlFile = getStore().files[activeHtmlPath];
+    if (!htmlFile) return;
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlFile.content, 'text/html');
+
+    let targetEl: Element | null = null;
+    try {
+      targetEl = doc.querySelector(selected.selector);
+    } catch {
+      if (selected.id) targetEl = doc.getElementById(selected.id);
+    }
+
+    if (targetEl && targetEl.parentNode && targetEl.previousElementSibling) {
+      targetEl.parentNode.insertBefore(targetEl, targetEl.previousElementSibling);
+      const updatedHtml = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+      getStore().updateFile(activeHtmlPath, updatedHtml);
+    }
+  },
+
+  moveSelectedElementDown: () => {
+    const selected = getStore().selectedElement;
+    if (!selected) return;
+
+    const activeHtmlPath = getStore().previewCurrentPath;
+    const htmlFile = getStore().files[activeHtmlPath];
+    if (!htmlFile) return;
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlFile.content, 'text/html');
+
+    let targetEl: Element | null = null;
+    try {
+      targetEl = doc.querySelector(selected.selector);
+    } catch {
+      if (selected.id) targetEl = doc.getElementById(selected.id);
+    }
+
+    if (targetEl && targetEl.parentNode && targetEl.nextElementSibling) {
+      targetEl.parentNode.insertBefore(targetEl.nextElementSibling, targetEl);
+      const updatedHtml = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+      getStore().updateFile(activeHtmlPath, updatedHtml);
     }
   },
 
@@ -975,7 +1092,9 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
       previewCurrentPath: entryHtml || 'index.html',
       consoleLogs: [],
       selectedElement: null,
-      isInspectMode: false,
+      canvasMode: 'design',
+      isInspectMode: true,
+      isInspectorPanelOpen: true,
     });
 
     getStore().persistToStorage();
@@ -989,9 +1108,11 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
       openTabs: ['index.html', 'css/style.css'],
       entryHtmlPath: 'index.html',
       previewCurrentPath: 'index.html',
-      isInspectMode: false,
+      canvasMode: 'design',
+      isInspectMode: true,
       selectedElement: null,
       consoleLogs: [],
+      isInspectorPanelOpen: true,
     });
   },
 

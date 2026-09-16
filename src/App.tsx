@@ -27,6 +27,9 @@ export default function App() {
     updateSelectedElementAttribute,
     addClassToSelectedElement,
     removeClassFromSelectedElement,
+    changeSelectedElementTag,
+    moveSelectedElementUp,
+    moveSelectedElementDown,
     duplicateSelectedElement,
     deleteSelectedElement,
     jumpToSelectedElementInCode,
@@ -172,6 +175,9 @@ export default function App() {
             onUpdateAttribute={updateSelectedElementAttribute}
             onAddClass={addClassToSelectedElement}
             onRemoveClass={removeClassFromSelectedElement}
+            onChangeTag={changeSelectedElementTag}
+            onMoveUp={moveSelectedElementUp}
+            onMoveDown={moveSelectedElementDown}
             onDuplicateElement={duplicateSelectedElement}
             onDeleteElement={deleteSelectedElement}
             onJumpToCode={jumpToSelectedElementInCode}

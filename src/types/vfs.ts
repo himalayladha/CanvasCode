@@ -11,6 +11,7 @@ export interface VirtualFile {
 }
 
 export type ViewportMode = 'desktop' | 'tablet' | 'mobile' | 'responsive';
+export type CanvasMode = 'design' | 'interact';
 
 export interface InspectedElementData {
   tagName: string;
@@ -25,6 +26,8 @@ export interface InspectedElementData {
     fontSize: string;
     fontWeight: string;
     textAlign: string;
+    lineHeight?: string;
+    letterSpacing?: string;
     margin: string;
     padding: string;
     border: string;
@@ -32,6 +35,11 @@ export interface InspectedElementData {
     width: string;
     height: string;
     display: string;
+    flexDirection?: string;
+    alignItems?: string;
+    justifyContent?: string;
+    gap?: string;
+    opacity?: string;
   };
   boxModel: {
     marginTop: string;
@@ -43,6 +51,7 @@ export interface InspectedElementData {
     paddingBottom: string;
     paddingLeft: string;
   };
+  customStyles?: Record<string, string>;
   rect: {
     top: number;
     left: number;
@@ -72,6 +81,7 @@ export interface ProjectState {
   openTabs: string[];
   entryHtmlPath: string;
   previewCurrentPath: string;
+  canvasMode: CanvasMode;
   isInspectMode: boolean;
   selectedElement: InspectedElementData | null;
   hoveredElementInfo: { selector: string; tagName: string; rect: { top: number; left: number; width: number; height: number } } | null;
@@ -81,4 +91,5 @@ export interface ProjectState {
   bottomPanelTab: 'console' | 'problems';
   previewKey: number;
   jumpToCodeTarget: JumpToCodeTarget | null;
+  isInspectorPanelOpen: boolean;
 }

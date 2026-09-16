@@ -61,6 +61,53 @@ describe('VisualInspector component', () => {
     expect(onUpdateText).toHaveBeenCalledWith('New Heading Text');
   });
 
+  it('triggers onChangeTag, onMoveUp, onMoveDown, onDuplicateElement, and onDeleteElement', () => {
+    const onChangeTag = vi.fn();
+    const onMoveUp = vi.fn();
+    const onMoveDown = vi.fn();
+    const onDuplicateElement = vi.fn();
+    const onDeleteElement = vi.fn();
+
+    render(
+      <VisualInspector
+        selectedElement={mockSelectedElement}
+        onUpdateStyle={vi.fn()}
+        onUpdateText={vi.fn()}
+        onChangeTag={onChangeTag}
+        onMoveUp={onMoveUp}
+        onMoveDown={onMoveDown}
+        onDuplicateElement={onDuplicateElement}
+        onDeleteElement={onDeleteElement}
+        onClose={vi.fn()}
+      />
+    );
+
+    // Change Tag
+    const tagSelect = screen.getByTitle('Change Element HTML Tag');
+    fireEvent.change(tagSelect, { target: { value: 'h2' } });
+    expect(onChangeTag).toHaveBeenCalledWith('h2');
+
+    // Move Up
+    const moveUpBtn = screen.getByTitle('Move Element Up in DOM');
+    fireEvent.click(moveUpBtn);
+    expect(onMoveUp).toHaveBeenCalled();
+
+    // Move Down
+    const moveDownBtn = screen.getByTitle('Move Element Down in DOM');
+    fireEvent.click(moveDownBtn);
+    expect(onMoveDown).toHaveBeenCalled();
+
+    // Duplicate
+    const dupBtn = screen.getByTitle('Duplicate Element');
+    fireEvent.click(dupBtn);
+    expect(onDuplicateElement).toHaveBeenCalled();
+
+    // Delete
+    const delBtn = screen.getByTitle('Delete Element');
+    fireEvent.click(delBtn);
+    expect(onDeleteElement).toHaveBeenCalled();
+  });
+
   it('renders empty state when no element is selected', () => {
     render(
       <VisualInspector
@@ -74,3 +121,4 @@ describe('VisualInspector component', () => {
     expect(screen.getByText(/No element selected/i)).toBeInTheDocument();
   });
 });
+
