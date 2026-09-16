@@ -315,7 +315,6 @@ console.log("🚀 WebStudio live preview initialized!");
 
 const ctaBtn = document.getElementById('cta-btn');
 const exploreBtn = document.getElementById('explore-btn');
-const mainHeading = document.getElementById('main-heading');
 
 if (exploreBtn) {
   exploreBtn.addEventListener('click', () => {
@@ -398,6 +397,13 @@ export interface ProjectStoreActions {
   setHoveredElementInfo: (info: ProjectState['hoveredElementInfo']) => void;
   updateSelectedElementStyle: (property: string, value: string) => void;
   updateSelectedElementText: (newText: string) => void;
+  updateSelectedElementAttribute: (name: string, value: string) => void;
+  addClassToSelectedElement: (className: string) => void;
+  removeClassFromSelectedElement: (className: string) => void;
+  duplicateSelectedElement: () => void;
+  deleteSelectedElement: () => void;
+  jumpToSelectedElementInCode: () => void;
+  clearJumpToCodeTarget: () => void;
 
   // Preview & console
   setViewportMode: (mode: ViewportMode) => void;
@@ -430,6 +436,7 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
   isBottomPanelOpen: false,
   bottomPanelTab: 'console',
   previewKey: 0,
+  jumpToCodeTarget: null,
 
   addFile: (path: string, content = '', isBinary = false, blob?: Blob) => {
     const normalized = normalizePath(path);
@@ -584,7 +591,6 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
   },
 
   createFolder: (folderPath: string) => {
-    // Folders in virtual filesystem are implicitly created when files are added inside them
     const normalized = normalizePath(folderPath);
     if (!normalized) return;
     const placeholder = `${normalized}/.gitkeep`;
@@ -669,24 +675,18 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
     const selected = getStore().selectedElement;
     if (!selected) return;
 
-    // Apply style inline to the element in the preview HTML file
     const activeHtmlPath = getStore().previewCurrentPath;
     const htmlFile = getStore().files[activeHtmlPath];
     if (!htmlFile) return;
 
-    // Direct DOM manipulation on the HTML string
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlFile.content, 'text/html');
 
-    // Locate the element using the unique selector
     let targetEl: Element | null = null;
     try {
       targetEl = doc.querySelector(selected.selector);
     } catch {
-      // Fallback selector search by tag and class or ID
-      if (selected.id) {
-        targetEl = doc.getElementById(selected.id);
-      }
+      if (selected.id) targetEl = doc.getElementById(selected.id);
     }
 
     if (targetEl) {
@@ -695,7 +695,6 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
       const updatedHtml = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
       getStore().updateFile(activeHtmlPath, updatedHtml);
 
-      // Update selected element state in store
       setStore((state) => ({
         selectedElement: state.selectedElement
           ? {
@@ -725,9 +724,7 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
     try {
       targetEl = doc.querySelector(selected.selector);
     } catch {
-      if (selected.id) {
-        targetEl = doc.getElementById(selected.id);
-      }
+      if (selected.id) targetEl = doc.getElementById(selected.id);
     }
 
     if (targetEl) {
@@ -741,6 +738,192 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
           : null,
       }));
     }
+  },
+
+  updateSelectedElementAttribute: (name: string, value: string) => {
+    const selected = getStore().selectedElement;
+    if (!selected) return;
+
+    const activeHtmlPath = getStore().previewCurrentPath;
+    const htmlFile = getStore().files[activeHtmlPath];
+    if (!htmlFile) return;
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlFile.content, 'text/html');
+
+    let targetEl: Element | null = null;
+    try {
+      targetEl = doc.querySelector(selected.selector);
+    } catch {
+      if (selected.id) targetEl = doc.getElementById(selected.id);
+    }
+
+    if (targetEl) {
+      if (value === '') {
+        targetEl.removeAttribute(name);
+      } else {
+        targetEl.setAttribute(name, value);
+      }
+      const updatedHtml = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+      getStore().updateFile(activeHtmlPath, updatedHtml);
+
+      const updatedAttrs = { ...selected.attributes };
+      if (value === '') {
+        delete updatedAttrs[name];
+      } else {
+        updatedAttrs[name] = value;
+      }
+
+      setStore((state) => ({
+        selectedElement: state.selectedElement
+          ? {
+              ...state.selectedElement,
+              attributes: updatedAttrs,
+              id: name === 'id' ? value : state.selectedElement.id,
+            }
+          : null,
+      }));
+    }
+  },
+
+  addClassToSelectedElement: (className: string) => {
+    const cleanClass = className.trim();
+    if (!cleanClass) return;
+
+    const selected = getStore().selectedElement;
+    if (!selected) return;
+
+    const currentClasses = selected.classList || [];
+    if (currentClasses.includes(cleanClass)) return;
+
+    const newClasses = [...currentClasses, cleanClass];
+    const newClassAttr = newClasses.join(' ');
+
+    getStore().updateSelectedElementAttribute('class', newClassAttr);
+
+    setStore((state) => ({
+      selectedElement: state.selectedElement
+        ? {
+            ...state.selectedElement,
+            classList: newClasses,
+          }
+        : null,
+    }));
+  },
+
+  removeClassFromSelectedElement: (className: string) => {
+    const selected = getStore().selectedElement;
+    if (!selected) return;
+
+    const currentClasses = selected.classList || [];
+    const newClasses = currentClasses.filter((c) => c !== className);
+    const newClassAttr = newClasses.join(' ');
+
+    getStore().updateSelectedElementAttribute('class', newClassAttr);
+
+    setStore((state) => ({
+      selectedElement: state.selectedElement
+        ? {
+            ...state.selectedElement,
+            classList: newClasses,
+          }
+        : null,
+    }));
+  },
+
+  duplicateSelectedElement: () => {
+    const selected = getStore().selectedElement;
+    if (!selected) return;
+
+    const activeHtmlPath = getStore().previewCurrentPath;
+    const htmlFile = getStore().files[activeHtmlPath];
+    if (!htmlFile) return;
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlFile.content, 'text/html');
+
+    let targetEl: Element | null = null;
+    try {
+      targetEl = doc.querySelector(selected.selector);
+    } catch {
+      if (selected.id) targetEl = doc.getElementById(selected.id);
+    }
+
+    if (targetEl && targetEl.parentNode) {
+      const clone = targetEl.cloneNode(true) as Element;
+      if (clone.id) {
+        clone.id = `${clone.id}-copy`;
+      }
+      targetEl.parentNode.insertBefore(clone, targetEl.nextSibling);
+      const updatedHtml = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+      getStore().updateFile(activeHtmlPath, updatedHtml);
+    }
+  },
+
+  deleteSelectedElement: () => {
+    const selected = getStore().selectedElement;
+    if (!selected) return;
+
+    const activeHtmlPath = getStore().previewCurrentPath;
+    const htmlFile = getStore().files[activeHtmlPath];
+    if (!htmlFile) return;
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlFile.content, 'text/html');
+
+    let targetEl: Element | null = null;
+    try {
+      targetEl = doc.querySelector(selected.selector);
+    } catch {
+      if (selected.id) targetEl = doc.getElementById(selected.id);
+    }
+
+    if (targetEl && targetEl.parentNode) {
+      targetEl.parentNode.removeChild(targetEl);
+      const updatedHtml = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+      getStore().updateFile(activeHtmlPath, updatedHtml);
+      setStore({ selectedElement: null });
+    }
+  },
+
+  jumpToSelectedElementInCode: () => {
+    const selected = getStore().selectedElement;
+    if (!selected) return;
+
+    const activeHtmlPath = getStore().previewCurrentPath;
+    const htmlFile = getStore().files[activeHtmlPath];
+    if (!htmlFile) return;
+
+    const lines = htmlFile.content.split('\n');
+    let targetLine = 1;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (selected.id && line.includes(`id="${selected.id}"`)) {
+        targetLine = i + 1;
+        break;
+      }
+      if (selected.classList.length > 0 && line.includes(selected.classList[0]) && line.includes(`<${selected.tagName}`)) {
+        targetLine = i + 1;
+        break;
+      }
+      if (line.includes(`<${selected.tagName}`)) {
+        targetLine = i + 1;
+      }
+    }
+
+    getStore().setActiveFile(activeHtmlPath);
+    setStore({
+      jumpToCodeTarget: {
+        filePath: activeHtmlPath,
+        line: targetLine,
+        selector: selected.selector,
+      },
+    });
+  },
+
+  clearJumpToCodeTarget: () => {
+    setStore({ jumpToCodeTarget: null });
   },
 
   setViewportMode: (mode: ViewportMode) => {
@@ -758,7 +941,7 @@ export const useProjectStore = create<ProjectState & ProjectStoreActions>((setSt
       timestamp: Date.now(),
     };
     setStore((state) => ({
-      consoleLogs: [...state.consoleLogs.slice(-150), newLog], // Keep last 150 logs
+      consoleLogs: [...state.consoleLogs.slice(-150), newLog],
     }));
   },
 

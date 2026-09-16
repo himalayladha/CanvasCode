@@ -59,6 +59,12 @@ export interface ConsoleLogMessage {
   stack?: string;
 }
 
+export interface JumpToCodeTarget {
+  filePath: string;
+  line: number;
+  selector: string;
+}
+
 export interface ProjectState {
   projectName: string;
   files: Record<string, VirtualFile>;
@@ -73,5 +79,6 @@ export interface ProjectState {
   viewportMode: ViewportMode;
   isBottomPanelOpen: boolean;
   bottomPanelTab: 'console' | 'problems';
-  previewKey: number; // for forcing preview iframe reload
+  previewKey: number;
+  jumpToCodeTarget: JumpToCodeTarget | null;
 }

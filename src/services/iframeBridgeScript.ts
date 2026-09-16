@@ -1,6 +1,7 @@
 /**
  * Bridge script injected into the preview iframe to facilitate
- * live console logging, error reporting, link navigation, and visual element inspection.
+ * live console logging, error reporting, link navigation, visual element inspection,
+ * and on-canvas WYSIWYG double-click text editing.
  */
 
 export const IFRAME_BRIDGE_SCRIPT = `
@@ -105,7 +106,7 @@ export const IFRAME_BRIDGE_SCRIPT = `
     }
   }, true);
 
-  // 3. Visual Element Inspector Overlay
+  // 3. Visual Element Inspector Overlay & On-Canvas Editing
   var isInspectMode = false;
   var hoverOverlay = null;
 
@@ -166,7 +167,7 @@ export const IFRAME_BRIDGE_SCRIPT = `
     var attributes = {};
     for (var i = 0; i < el.attributes.length; i++) {
       var attr = el.attributes[i];
-      if (!attr.name.startsWith('data-webstudio')) {
+      if (!attr.name.startsWith('data-webstudio') && attr.name !== 'contenteditable') {
         attributes[attr.name] = attr.value;
       }
     }
@@ -250,6 +251,34 @@ export const IFRAME_BRIDGE_SCRIPT = `
       payload: data
     }, '*');
   }
+
+  // On-canvas Double-Click WYSIWYG text editing
+  document.addEventListener('dblclick', function(e) {
+    var target = e.target;
+    if (!target || target === document.body || target === document.documentElement || target.id?.startsWith('__webstudio')) {
+      return;
+    }
+
+    if (target.children.length === 0 || ['H1','H2','H3','H4','H5','H6','P','SPAN','BUTTON','A','LI'].indexOf(target.tagName) !== -1) {
+      target.contentEditable = 'true';
+      target.focus();
+      if (hoverOverlay) hoverOverlay.style.display = 'none';
+
+      var handleBlur = function() {
+        target.contentEditable = 'false';
+        target.removeEventListener('blur', handleBlur);
+        window.parent.postMessage({
+          type: 'WEBSTUDIO_CANVAS_TEXT_EDITED',
+          payload: {
+            selector: getUniqueSelector(target),
+            text: target.textContent || ''
+          }
+        }, '*');
+      };
+
+      target.addEventListener('blur', handleBlur);
+    }
+  }, true);
 
   window.addEventListener('message', function(event) {
     var data = event.data;

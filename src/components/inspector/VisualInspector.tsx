@@ -9,15 +9,26 @@ import {
   Layers,
   X,
   MousePointerClick,
+  Code2,
+  Copy,
+  Trash2,
 } from 'lucide-react';
 import { InspectedElementData } from '../../types/vfs';
 import { ColorPickerInput } from './ColorPickerInput';
 import { BoxModelControl } from './BoxModelControl';
+import { ClassManager } from './ClassManager';
+import { AttributeEditor } from './AttributeEditor';
 
 interface VisualInspectorProps {
   selectedElement: InspectedElementData | null;
   onUpdateStyle: (property: string, value: string) => void;
   onUpdateText: (newText: string) => void;
+  onUpdateAttribute?: (name: string, value: string) => void;
+  onAddClass?: (className: string) => void;
+  onRemoveClass?: (className: string) => void;
+  onDuplicateElement?: () => void;
+  onDeleteElement?: () => void;
+  onJumpToCode?: () => void;
   onClose: () => void;
 }
 
@@ -25,6 +36,12 @@ export const VisualInspector: React.FC<VisualInspectorProps> = ({
   selectedElement,
   onUpdateStyle,
   onUpdateText,
+  onUpdateAttribute,
+  onAddClass,
+  onRemoveClass,
+  onDuplicateElement,
+  onDeleteElement,
+  onJumpToCode,
   onClose,
 }) => {
   if (!selectedElement) {
@@ -39,7 +56,7 @@ export const VisualInspector: React.FC<VisualInspectorProps> = ({
     );
   }
 
-  const { tagName, id, classList, selector, innerText, computedStyles, boxModel, rect } = selectedElement;
+  const { tagName, id, classList, selector, innerText, attributes, computedStyles, boxModel, rect } = selectedElement;
 
   const fontSizeNum = parseInt(computedStyles.fontSize || '16', 10) || 16;
   const borderRadiusNum = parseInt(computedStyles.borderRadius || '0', 10) || 0;
@@ -52,12 +69,24 @@ export const VisualInspector: React.FC<VisualInspectorProps> = ({
           <Sliders className="w-3.5 h-3.5 text-[#007acc] shrink-0" />
           <span className="font-semibold text-white text-xs">Visual Inspector</span>
         </div>
-        <button
-          onClick={onClose}
-          className="p-1 hover:bg-[#333333] rounded text-gray-400 hover:text-white transition-colors"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center gap-1">
+          {onJumpToCode && (
+            <button
+              title="Jump to element line in Monaco code editor"
+              onClick={onJumpToCode}
+              className="p-1 hover:bg-[#333333] rounded text-[#007acc] hover:text-blue-300 transition-colors flex items-center gap-1 text-[11px] font-medium"
+            >
+              <Code2 className="w-3.5 h-3.5" />
+              <span>Code</span>
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="p-1 hover:bg-[#333333] rounded text-gray-400 hover:text-white transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       <div className="p-3 space-y-4 text-xs">
@@ -77,21 +106,30 @@ export const VisualInspector: React.FC<VisualInspectorProps> = ({
             </span>
           </div>
 
-          {classList.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
-              {classList.map((cls) => (
-                <span
-                  key={cls}
-                  className="bg-[#1e1e1e] text-blue-300 font-mono px-1.5 py-0.2 rounded text-[10px] border border-[#3f3f46]"
-                >
-                  .{cls}
-                </span>
-              ))}
-            </div>
-          )}
-
           <div className="text-[10px] text-gray-500 font-mono truncate mt-1 pt-1 border-t border-[#333333]">
             {selector}
+          </div>
+
+          {/* Quick DOM Actions */}
+          <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-[#333333]">
+            {onDuplicateElement && (
+              <button
+                onClick={onDuplicateElement}
+                className="flex items-center gap-1 px-2 py-1 bg-[#1e1e1e] hover:bg-[#2e2e2e] border border-[#3f3f46] text-gray-200 rounded text-[11px] transition-colors"
+              >
+                <Copy className="w-3 h-3 text-blue-400" />
+                <span>Duplicate</span>
+              </button>
+            )}
+            {onDeleteElement && (
+              <button
+                onClick={onDeleteElement}
+                className="flex items-center gap-1 px-2 py-1 bg-red-950/40 hover:bg-red-900/60 border border-red-500/30 text-red-300 rounded text-[11px] transition-colors ml-auto"
+              >
+                <Trash2 className="w-3 h-3 text-red-400" />
+                <span>Delete</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -109,6 +147,24 @@ export const VisualInspector: React.FC<VisualInspectorProps> = ({
               className="w-full bg-[#1e1e1e] border border-[#333333] focus:border-[#007acc] rounded p-2 text-xs text-white font-sans outline-none resize-none"
             />
           </div>
+        )}
+
+        {/* Class Manager */}
+        {onAddClass && onRemoveClass && (
+          <ClassManager
+            classList={classList}
+            onAddClass={onAddClass}
+            onRemoveClass={onRemoveClass}
+          />
+        )}
+
+        {/* HTML Attributes */}
+        {onUpdateAttribute && (
+          <AttributeEditor
+            tagName={tagName}
+            attributes={attributes}
+            onUpdateAttribute={onUpdateAttribute}
+          />
         )}
 
         {/* Typography Section */}

@@ -23,6 +23,7 @@ export const PreviewPane: React.FC = () => {
     isInspectMode,
     toggleInspectMode,
     setSelectedElement,
+    updateSelectedElementText,
     addConsoleLog,
     viewportMode,
     setViewportMode,
@@ -95,6 +96,12 @@ export const PreviewPane: React.FC = () => {
           }
           break;
 
+        case 'WEBSTUDIO_CANVAS_TEXT_EDITED':
+          if (data.payload?.text !== undefined) {
+            updateSelectedElementText(data.payload.text);
+          }
+          break;
+
         default:
           break;
       }
@@ -102,7 +109,7 @@ export const PreviewPane: React.FC = () => {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [files, addConsoleLog, setPreviewCurrentPath, setActiveFile, setSelectedElement]);
+  }, [files, addConsoleLog, setPreviewCurrentPath, setActiveFile, setSelectedElement, updateSelectedElementText]);
 
   const getViewportDimensions = (mode: ViewportMode, landscape: boolean) => {
     switch (mode) {

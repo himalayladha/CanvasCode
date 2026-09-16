@@ -1,7 +1,8 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import Editor, { Monaco } from '@monaco-editor/react';
 import { getLanguageFromPath } from '../../utils/pathUtils';
 import { VirtualFile } from '../../types/vfs';
+import { useProjectStore } from '../../store/useProjectStore';
 
 interface CodeEditorProps {
   file: VirtualFile;
@@ -10,12 +11,15 @@ interface CodeEditorProps {
 
 export const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange }) => {
   const editorRef = useRef<any>(null);
+  const monacoRef = useRef<Monaco | null>(null);
   const language = getLanguageFromPath(file.path);
+  const { jumpToCodeTarget, clearJumpToCodeTarget } = useProjectStore();
 
   const handleEditorDidMount = (editor: any, monaco: Monaco) => {
     editorRef.current = editor;
+    monacoRef.current = monaco;
 
-    // Configure Monaco HTML / CSS / JS formatting & emmet options
+    // Configure Monaco HTML / CSS / JS formatting options
     if (monaco.languages.html?.htmlDefaults) {
       monaco.languages.html.htmlDefaults.setOptions({
         format: {
@@ -43,6 +47,17 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ file, onChange }) => {
       editor.getAction('editor.action.formatDocument')?.run();
     });
   };
+
+  // Jump to specific line when triggered from inspector
+  useEffect(() => {
+    if (jumpToCodeTarget && editorRef.current && jumpToCodeTarget.filePath === file.path) {
+      const line = jumpToCodeTarget.line;
+      editorRef.current.revealLineInCenter(line);
+      editorRef.current.setPosition({ lineNumber: line, column: 1 });
+      editorRef.current.focus();
+      clearJumpToCodeTarget();
+    }
+  }, [jumpToCodeTarget, file.path, clearJumpToCodeTarget]);
 
   return (
     <div className="flex-1 h-full w-full relative bg-[#1e1e1e]">

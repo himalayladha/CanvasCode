@@ -24,6 +24,12 @@ export default function App() {
     setSelectedElement,
     updateSelectedElementStyle,
     updateSelectedElementText,
+    updateSelectedElementAttribute,
+    addClassToSelectedElement,
+    removeClassFromSelectedElement,
+    duplicateSelectedElement,
+    deleteSelectedElement,
+    jumpToSelectedElementInCode,
     consoleLogs,
     clearConsoleLogs,
     isBottomPanelOpen,
@@ -157,12 +163,18 @@ export default function App() {
           <PreviewPane />
         </div>
 
-        {/* Right Pane: Visual Element Inspector (Toggled when inspecting) */}
+        {/* Right Pane: Visual Element Inspector */}
         {showInspector && (
           <VisualInspector
             selectedElement={selectedElement}
             onUpdateStyle={updateSelectedElementStyle}
             onUpdateText={updateSelectedElementText}
+            onUpdateAttribute={updateSelectedElementAttribute}
+            onAddClass={addClassToSelectedElement}
+            onRemoveClass={removeClassFromSelectedElement}
+            onDuplicateElement={duplicateSelectedElement}
+            onDeleteElement={deleteSelectedElement}
+            onJumpToCode={jumpToSelectedElementInCode}
             onClose={() => setSelectedElement(null)}
           />
         )}
