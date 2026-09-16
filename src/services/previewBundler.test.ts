@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bundleProjectForPreview } from './previewBundler';
+import { bundleProjectForPreview, bundleProjectForStandalone } from './previewBundler';
 import { VirtualFile } from '../types/vfs';
 
 describe('previewBundler', () => {
@@ -103,5 +103,48 @@ describe('previewBundler', () => {
 
     const bundledInteract = bundleProjectForPreview(files, 'index.html', false);
     expect(bundledInteract).toContain('var isInspectMode = false;');
+  });
+
+  it('bundles project for standalone new tab with clean HTML and standalone client-side routing', () => {
+    const files: Record<string, VirtualFile> = {
+      'index.html': {
+        id: '1',
+        path: 'index.html',
+        name: 'index.html',
+        type: 'file',
+        content: `<!DOCTYPE html><html><head><link rel="stylesheet" href="css/style.css"></head><body><h1>Home</h1><a href="about.html">Go to About</a></body></html>`,
+        isBinary: false,
+        updatedAt: 1,
+      },
+      'about.html': {
+        id: '2',
+        path: 'about.html',
+        name: 'about.html',
+        type: 'file',
+        content: `<!DOCTYPE html><html><body><h1>About Page</h1><a href="index.html">Back Home</a></body></html>`,
+        isBinary: false,
+        updatedAt: 1,
+      },
+      'css/style.css': {
+        id: '3',
+        path: 'css/style.css',
+        name: 'style.css',
+        type: 'file',
+        content: 'h1 { color: teal; }',
+        isBinary: false,
+        updatedAt: 1,
+      },
+    };
+
+    const standalone = bundleProjectForStandalone(files, 'index.html');
+
+    // Should contain inlined styles
+    expect(standalone).toContain('h1 { color: teal; }');
+    // Should NOT contain editor bridge or inspect overlays
+    expect(standalone).not.toContain('__WEBSTUDIO_BRIDGE__');
+    expect(standalone).not.toContain('__webstudio_inspect_overlay__');
+    // Should contain standalone multi-page router
+    expect(standalone).toContain('__CANVASCODE_STANDALONE_ROUTER__');
+    expect(standalone).toContain('about.html');
   });
 });

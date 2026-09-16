@@ -12,7 +12,7 @@ import {
   Play,
 } from 'lucide-react';
 import { useProjectStore } from '../../store/useProjectStore';
-import { bundleProjectForPreview } from '../../services/previewBundler';
+import { bundleProjectForPreview, bundleProjectForStandalone } from '../../services/previewBundler';
 import { ViewportMode, DomBreadcrumbNode } from '../../types/vfs';
 import { WysiwygToolbar } from '../wysiwyg/WysiwygToolbar';
 import { DomBreadcrumbBar } from './DomBreadcrumbBar';
@@ -181,9 +181,23 @@ export const PreviewPane: React.FC = () => {
   const dimensions = getViewportDimensions(viewportMode, isLandscape);
 
   const handleOpenInNewTab = () => {
-    const blob = new Blob([debouncedHtml], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
+    try {
+      const standaloneHtml = bundleProjectForStandalone(files, previewCurrentPath);
+      const blob = new Blob([standaloneHtml], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const newWin = window.open(url, '_blank');
+      if (!newWin || newWin.closed || typeof newWin.closed === 'undefined') {
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    } catch (err) {
+      console.error('Failed to open standalone preview:', err);
+    }
   };
 
   return (

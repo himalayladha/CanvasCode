@@ -21,13 +21,12 @@ export function resolveCssUrls(cssContent: string, cssFilePath: string, files: R
 }
 
 /**
- * Bundles the virtual files for the active HTML file and produces
- * a self-contained HTML document with inlined/blob-mapped assets and bridge scripts.
+ * Bundles a single HTML page with inlined CSS, JS, and media assets without any editor bridges.
  */
-export function bundleProjectForPreview(
+export function bundleSingleHtmlPage(
   files: Record<string, VirtualFile>,
   activeHtmlPath: string = 'index.html',
-  isInspectMode: boolean = true
+  includeWebstudioIds: boolean = true
 ): string {
   const htmlFile = files[activeHtmlPath];
   if (!htmlFile) {
@@ -70,7 +69,10 @@ export function bundleProjectForPreview(
 
   // Parse HTML
   const parser = new DOMParser();
-  const doc = parser.parseFromString(htmlFile.content || '<!DOCTYPE html><html><head></head><body></body></html>', 'text/html');
+  const doc = parser.parseFromString(
+    htmlFile.content || '<!DOCTYPE html><html><head></head><body></body></html>',
+    'text/html'
+  );
 
   // 1. Resolve Stylesheets: <link rel="stylesheet" href="...">
   const linkTags = Array.from(doc.querySelectorAll('link[rel="stylesheet"]'));
@@ -108,9 +110,15 @@ export function bundleProjectForPreview(
   });
 
   // 3. Resolve Media & Images: <img src="...">, <source srcset="...">, <video src="...">, <audio src="...">, <link rel="icon">
-  const mediaElements = Array.from(doc.querySelectorAll('img[src], source[srcset], video[src], audio[src], link[rel*="icon"]'));
+  const mediaElements = Array.from(
+    doc.querySelectorAll('img[src], source[srcset], video[src], audio[src], link[rel*="icon"]')
+  );
   mediaElements.forEach((el) => {
-    const attrName = el.hasAttribute('srcset') ? 'srcset' : (el.hasAttribute('href') ? 'href' : 'src');
+    const attrName = el.hasAttribute('srcset')
+      ? 'srcset'
+      : el.hasAttribute('href')
+      ? 'href'
+      : 'src';
     const assetPath = el.getAttribute(attrName);
     if (!assetPath || /^(https?:|\/\/|data:|blob:)/i.test(assetPath)) return;
 
@@ -141,8 +149,8 @@ export function bundleProjectForPreview(
     }
   });
 
-  // 5. Assign deterministic data-webstudio-id index to all body elements for precision visual inspector & live-editing mapping
-  if (doc.body) {
+  // 5. Assign deterministic data-webstudio-id if requested
+  if (includeWebstudioIds && doc.body) {
     let elementIndex = 0;
     const assignWebstudioIds = (el: Element) => {
       el.setAttribute('data-webstudio-id', String(elementIndex++));
@@ -153,17 +161,105 @@ export function bundleProjectForPreview(
     assignWebstudioIds(doc.body);
   }
 
-  // 6. Serialize HTML and inject Bridge Script
-  const bridgeScript = getIframeBridgeScript(isInspectMode);
-  let htmlResult = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+  return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+}
 
-  if (htmlResult.includes('</body>')) {
-    htmlResult = htmlResult.replace('</body>', `${bridgeScript}\n</body>`);
-  } else if (htmlResult.includes('</html>')) {
-    htmlResult = htmlResult.replace('</html>', `${bridgeScript}\n</html>`);
+/**
+ * Bundles the virtual files for the active HTML file and produces
+ * a self-contained HTML document with inlined/blob-mapped assets and bridge scripts for in-editor preview.
+ */
+export function bundleProjectForPreview(
+  files: Record<string, VirtualFile>,
+  activeHtmlPath: string = 'index.html',
+  isInspectMode: boolean = true
+): string {
+  const baseHtml = bundleSingleHtmlPage(files, activeHtmlPath, true);
+  const bridgeScript = getIframeBridgeScript(isInspectMode);
+
+  if (baseHtml.includes('</body>')) {
+    return baseHtml.replace('</body>', `${bridgeScript}\n</body>`);
+  } else if (baseHtml.includes('</html>')) {
+    return baseHtml.replace('</html>', `${bridgeScript}\n</html>`);
   } else {
-    htmlResult += `\n${bridgeScript}`;
+    return `${baseHtml}\n${bridgeScript}`;
+  }
+}
+
+/**
+ * Bundles the virtual files into a 100% standalone, fully functional HTML application
+ * suitable for opening in a new browser tab/window, including client-side multi-page routing.
+ */
+export function bundleProjectForStandalone(
+  files: Record<string, VirtualFile>,
+  activeHtmlPath: string = 'index.html'
+): string {
+  // Bundle all HTML pages cleanly
+  const allHtmlPaths = Object.keys(files).filter(
+    (p) => p.endsWith('.html') || p.endsWith('.htm')
+  );
+
+  const bundledPagesMap: Record<string, string> = {};
+  allHtmlPaths.forEach((path) => {
+    bundledPagesMap[path] = bundleSingleHtmlPage(files, path, false);
+  });
+
+  // If active page is missing in map, bundle it
+  if (!bundledPagesMap[activeHtmlPath]) {
+    bundledPagesMap[activeHtmlPath] = bundleSingleHtmlPage(files, activeHtmlPath, false);
   }
 
-  return htmlResult;
+  // Create client-side multi-page routing script
+  const pagesJson = JSON.stringify(bundledPagesMap).replace(/<\/script>/gi, '<\\/script>');
+  const standaloneRouterScript = `
+<script id="__CANVASCODE_STANDALONE_ROUTER__">
+(function() {
+  var pages = ${pagesJson};
+  var currentPath = ${JSON.stringify(activeHtmlPath)};
+
+  function normalizePath(base, rel) {
+    if (!rel || /^(https?:|\\/\\/|mailto:|tel:|javascript:|#)/i.test(rel)) return null;
+    var cleanRel = rel.split('?')[0].split('#')[0];
+    var baseParts = base.split('/');
+    baseParts.pop();
+    var relParts = cleanRel.split('/');
+    for (var i = 0; i < relParts.length; i++) {
+      if (relParts[i] === '.' || relParts[i] === '') continue;
+      if (relParts[i] === '..') {
+        if (baseParts.length > 0) baseParts.pop();
+      } else {
+        baseParts.push(relParts[i]);
+      }
+    }
+    return baseParts.join('/');
+  }
+
+  document.addEventListener('click', function(e) {
+    var target = e.target;
+    while (target && target.tagName !== 'A') {
+      target = target.parentElement;
+    }
+    if (!target || target.tagName !== 'A') return;
+    var href = target.getAttribute('href');
+    if (!href) return;
+
+    var resolved = normalizePath(currentPath, href);
+    if (resolved && pages[resolved]) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.open();
+      document.write(pages[resolved]);
+      document.close();
+    }
+  }, true);
+})();
+</script>`;
+
+  const activeHtml = bundledPagesMap[activeHtmlPath];
+  if (activeHtml.includes('</body>')) {
+    return activeHtml.replace('</body>', `${standaloneRouterScript}\n</body>`);
+  } else if (activeHtml.includes('</html>')) {
+    return activeHtml.replace('</html>', `${standaloneRouterScript}\n</html>`);
+  } else {
+    return `${activeHtml}\n${standaloneRouterScript}`;
+  }
 }
